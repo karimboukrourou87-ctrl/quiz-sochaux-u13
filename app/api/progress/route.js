@@ -1,7 +1,7 @@
 import { Redis } from '@upstash/redis';
 import { NextResponse } from 'next/server';
 
-const redis = Redis.fromEnv();
+const redis = new Redis({ url: process.env.UPSTASH_REDIS_REST_KV_REST_API_URL, token: process.env.UPSTASH_REDIS_REST_KV_REST_API_TOKEN });
 
 // GET /api/progress?name=PRENOM - Charger la progression d'un joueur
 export async function GET(request) {
