@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Le Quiz des Lionceaux · U13</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{--bleu:#0a2472;--bleu-clair:#143aa6;--jaune:#ffcd00;--jaune-fonce:#e6b800;--blanc:#fff;--vert:#2dd86b;--rouge:#ff4d5e;--ombre:0 14px 40px rgba(0,0,0,.35)}
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{font-family:'Outfit',sans-serif;color:#fff;background:var(--bleu);
+    background-image:repeating-linear-gradient(125deg,rgba(255,255,255,.04) 0 2px,transparent 2px 46px),radial-gradient(circle at 80% -10%,rgba(255,205,0,.22),transparent 45%),radial-gradient(circle at 0% 110%,rgba(20,58,166,.6),transparent 50%);
+    min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:18px;overflow-x:hidden}
+  .app{width:100%;max-width:460px}
+  .screen{display:none;animation:pop .45s cubic-bezier(.2,.9,.3,1.3)}
+  .screen.active{display:block}
+  @keyframes pop{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:none}}
+  .badge{display:flex;align-items:center;justify-content:center;gap:8px;margin:0 auto 14px;width:fit-content;background:var(--jaune);color:var(--bleu);font-weight:800;font-size:.76rem;letter-spacing:.12em;text-transform:uppercase;padding:7px 16px;border-radius:999px;box-shadow:0 6px 18px rgba(255,205,0,.4)}
+  h1{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;line-height:.92;text-align:center;font-size:clamp(2.3rem,10vw,3.2rem)}
+  h1 .y{color:var(--jaune);display:block}
+  .lion{font-size:4.2rem;text-align:center;display:block;filter:drop-shadow(0 8px 14px rgba(0,0,0,.4))}
+  .sub{text-align:center;opacity:.85;margin-top:10px;font-size:.96rem;line-height:1.45}
+  .sub b{color:var(--jaune)}
+  .card{background:linear-gradient(170deg,var(--bleu-clair),var(--bleu));border:1px solid rgba(255,255,255,.1);border-radius:26px;padding:24px 20px;box-shadow:var(--ombre);position:relative;overflow:hidden}
+  .card::before{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 60%,rgba(255,205,0,.08) 60% 64%,transparent 64%);pointer-events:none}
+  .btn{display:block;width:100%;border:none;cursor:pointer;font-family:'Anton',sans-serif;letter-spacing:.05em;text-transform:uppercase;font-size:1.4rem;padding:15px;border-radius:16px;margin-top:16px;background:var(--jaune);color:var(--bleu);box-shadow:0 8px 0 var(--jaune-fonce);transition:transform .08s,box-shadow .08s}
+  .btn:active{transform:translateY(5px);box-shadow:0 3px 0 var(--jaune-fonce)}
+  .btn.ghost{background:rgba(255,255,255,.12);color:#fff;box-shadow:none;font-size:1rem;padding:12px}
+  .field{margin-top:16px}
+  .field label{display:block;font-weight:700;font-size:.82rem;opacity:.85;margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em}
+  .field input{width:100%;border:2px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff;border-radius:14px;padding:14px;font-size:1.05rem;font-family:'Outfit',sans-serif;font-weight:600;outline:none}
+  .field input:focus{border-color:var(--jaune)}
+  .field input::placeholder{color:rgba(255,255,255,.5)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+  .pick{background:rgba(255,255,255,.07);border:2px solid transparent;border-radius:18px;padding:14px 8px;text-align:center;cursor:pointer;transition:.18s;font-weight:700}
+  .pick .face{font-size:2.4rem;display:block;margin-bottom:4px}
+  .pick small{opacity:.7;font-weight:600;font-size:.78rem}
+  .pick.sel{border-color:var(--jaune);background:rgba(255,205,0,.16);transform:translateY(-3px)}
+  .rankbar{display:flex;align-items:center;gap:10px;background:rgba(255,205,0,.14);border:1px solid rgba(255,205,0,.35);border-radius:14px;padding:10px 14px;margin-bottom:16px}
+  .rankbar .ic{font-size:1.7rem}
+  .rankbar b{color:var(--jaune)}
+  .rankbar small{display:block;opacity:.75;font-weight:600}
+  .lvl{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.1);border-radius:16px;padding:13px 15px;margin-bottom:10px;cursor:pointer;transition:.15s}
+  .lvl:active{transform:scale(.98)}
+  .lvl.lock{opacity:.5;cursor:not-allowed}
+  .lvl.done{border-color:var(--vert)}
+  .lvl .em{font-size:1.7rem;min-width:34px;text-align:center}
+  .lvl .info{flex:1}
+  .lvl .info b{font-size:1.02rem}
+  .lvl .info small{display:block;opacity:.7;font-size:.8rem;margin-top:1px}
+  .lvl .mark{font-weight:800;font-size:.85rem;color:var(--jaune)}
+  .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;font-weight:700}
+  .pill{background:rgba(255,255,255,.12);padding:5px 13px;border-radius:999px;font-size:.85rem}
+  .bar{height:9px;background:rgba(255,255,255,.14);border-radius:9px;overflow:hidden;margin-bottom:18px}
+  .fill{height:100%;width:0;background:var(--jaune);border-radius:9px;transition:width .4s}
+  .qtheme{color:var(--jaune);font-weight:800;text-transform:uppercase;font-size:.76rem;letter-spacing:.1em;margin-bottom:8px}
+  .question{font-size:1.28rem;font-weight:700;line-height:1.32;min-height:2.6em}
+  .answers{display:flex;flex-direction:column;gap:10px;margin-top:18px}
+  .ans{background:rgba(255,255,255,.09);border:2px solid rgba(255,255,255,.12);color:#fff;text-align:left;cursor:pointer;border-radius:14px;padding:13px 15px;font-size:1.03rem;font-weight:600;transition:.15s;font-family:'Outfit',sans-serif}
+  .ans:active{transform:scale(.98)}
+  .ans.good{background:var(--vert);border-color:var(--vert);color:#06351a}
+  .ans.bad{background:var(--rouge);border-color:var(--rouge);color:#3b0009}
+  .ans.lock{pointer-events:none;opacity:.55}
+  .ans.good.lock,.ans.bad.lock{opacity:1}
+  .feedback{margin-top:16px;text-align:center;min-height:1.5em;font-weight:800;font-size:1.15rem;opacity:0;transition:.2s}
+  .feedback.show{opacity:1}
+  .feedback small{display:block;font-weight:600;font-size:.9rem;opacity:.85;margin-top:4px;color:#fff}
+  .hidden{display:none!important}
+  .scorebig{font-family:'Anton',sans-serif;font-size:4.4rem;text-align:center;line-height:1}
+  .scorebig span{font-size:1.8rem;opacity:.7}
+  .ok{color:var(--vert)}.ko{color:var(--rouge)}
+  .msg{text-align:center;font-size:1.08rem;font-weight:700;margin-top:4px;line-height:1.4}
+  .lbtitle{font-family:'Anton',sans-serif;text-transform:uppercase;font-size:1.3rem;text-align:center;margin:20px 0 10px;color:var(--jaune)}
+  .lbrow{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.07);border-radius:12px;padding:9px 12px;margin-bottom:7px;font-weight:600}
+  .lbrow:nth-child(1){background:rgba(255,205,0,.2)}
+  .lbrank{font-family:'Anton',sans-serif;font-size:1.05rem;color:var(--jaune);min-width:22px;text-align:center}
+  .lbname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lblvl{font-size:.72rem;opacity:.65}
+  .lbscore{font-weight:800;color:var(--jaune)}
+  .lbnote{text-align:center;opacity:.7;font-size:.88rem;padding:10px}
+  .foot{text-align:center;margin-top:16px;font-size:.74rem;opacity:.55;line-height:1.5}
+  .foot a{color:var(--jaune)}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <section class="screen active" id="home">
+    <div class="card">
+      <span class="lion">🦁</span>
+      <div class="badge">⚽ FC Sochaux · Les Lionceaux</div>
+      <h1>Le quiz <span class="y">des Lionceaux</span></h1>
+      <p class="sub">7 niveaux pour préparer le <b>Festival U13 Pitch</b> : règles du jeu, règles de vie et nouveautés 2026-2027.</p>
+      <button class="btn" onclick="go('name')">Jouer</button>
+    </div>
+  </section>
+
+  <section class="screen" id="name">
+    <div class="card">
+      <div class="badge">Ton joueur</div>
+      <h1 style="font-size:1.9rem">Qui joue ?</h1>
+      <div class="field"><label>Ton prénom</label>
+        <input id="pseudoInput" type="text" maxlength="16" placeholder="Ex : Tiago" oninput="checkReady()"></div>
+      <div class="grid" id="mascotGrid">
+        <div class="pick" data-name="Lion" onclick="pickMascot(this)"><span class="face">🦁</span>Léo<br><small>le Lion</small></div>
+        <div class="pick" data-name="Gardien" onclick="pickMascot(this)"><span class="face">🧤</span>Capi<br><small>le gardien</small></div>
+        <div class="pick" data-name="Attaquant" onclick="pickMascot(this)"><span class="face">⚡</span>Flèche<br><small>l'attaquant</small></div>
+        <div class="pick" data-name="Buteur" onclick="pickMascot(this)"><span class="face">🔥</span>Tonnerre<br><small>le buteur</small></div>
+      </div>
+      <button class="btn" id="nameOk" disabled style="opacity:.5" onclick="go('levels')">OK</button>
+    </div>
+  </section>
+
+  <section class="screen" id="levels">
+    <div class="card">
+      <div class="rankbar"><span class="ic" id="rankIcon">🐾</span><div><b id="rankName">Lionceau Débutant</b><small id="rankSub">Valide un niveau pour progresser</small></div></div>
+      <div class="badge">Choisis ton niveau</div>
+      <div id="levelList"></div>
+      <button class="btn ghost" onclick="showLeaderboardScreen()">🏅 Voir le classement</button>
+    </div>
+  </section>
+
+  <section class="screen" id="quiz">
+    <div class="card">
+      <div class="top"><span class="pill" id="counter">1/10</span><span class="pill" id="liveScore">⚽ 0</span></div>
+      <div class="bar"><div class="fill" id="fill"></div></div>
+      <div class="qtheme" id="qtheme"></div>
+      <div class="question" id="qtext"></div>
+      <div class="answers" id="answers"></div>
+      <div class="feedback" id="feedback"></div>
+      <button class="btn next hidden" id="nextBtn" onclick="nextQuestion()">Suivant ›</button>
+    </div>
+  </section>
+
+  <section class="screen" id="result">
+    <div class="card">
+      <span class="lion" id="resEmoji">🏆</span>
+      <div class="badge" id="resName">Résultat</div>
+      <div class="scorebig"><span id="finalScore" class="ok">0</span><span>/10</span></div>
+      <p class="msg" id="msg"></p>
+      <div id="resBtns"></div>
+      <div class="lbtitle">🏅 Classement</div>
+      <div id="lbBody"><div class="lbnote">Chargement…</div></div>
+      <p class="foot">Entraînement au Festival Foot U13 Pitch · <a href="https://pef.fff.fr" target="_blank" rel="noopener">pef.fff.fr</a></p>
+    </div>
+  </section>
+
+  <section class="screen" id="board">
+    <div class="card">
+      <span class="lion">🏅</span>
+      <div class="badge">Meilleurs scores</div>
+      <div id="boardBody" style="margin-top:14px"><div class="lbnote">Chargement…</div></div>
+      <button class="btn" onclick="go('levels')">Retour</button>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ===================================================================
+   CONFIGURATION SUPABASE (à remplir une seule fois)
+   Remplace les 2 valeurs par celles de ton projet
+   (Supabase > Project Settings > API : Project URL + clé anon public),
+   puis crée la table avec le SQL fourni dans le message.
+   Tant que ce n'est pas fait, le quiz marche sans classement.
+   =================================================================== */
+const SUPABASE_URL = "https://TON-PROJET.supabase.co";
+const SUPABASE_ANON_KEY = "TA_CLE_ANON_PUBLIC";
+let sb=null;
+try{ if(window.supabase && !SUPABASE_URL.includes("TON-PROJET")) sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY); }catch(e){ sb=null; }
+
+const LEVELS=[
+  {id:1,name:"Les bases du foot",emoji:"⚽",desc:"Les règles essentielles"},
+  {id:2,name:"Le jeu au quotidien",emoji:"👟",desc:"Santé, fair-play, respect"},
+  {id:3,name:"Comprendre le jeu",emoji:"🎯",desc:"Buts, corners et touches"},
+  {id:4,name:"Dimensions et distances",emoji:"📏",desc:"Les mesures du foot à 8"},
+  {id:5,name:"Gardien et hors-jeu",emoji:"🧤",desc:"Les règles spécifiques"},
+  {id:6,name:"Coups francs et fautes",emoji:"⚖️",desc:"Sanctions et reprises"},
+  {id:7,name:"Expert 2026",emoji:"🏆",desc:"Nouveautés et culture foot"},
+  {id:8,name:"Les Lois du jeu",emoji:"📜",desc:"Le règlement officiel Foot à 8"},
+  {id:9,name:"Programme Éducatif",emoji:"🎓",desc:"Le PEF de la FFF (valeurs et thèmes)"},
+];
+const PASS=7;
+const RANKS=[
+  {name:"Lionceau Débutant",min:0,icon:"🐾"},
+  {name:"Apprenti Lionceau",min:2,icon:"🦁"},
+  {name:"Lionceau Confirmé",min:4,icon:"⭐"},
+  {name:"Capitaine de Bonal",min:6,icon:"🎖️"},
+  {name:"Lion d'Or de Sochaux",min:9,icon:"👑"},
+];
+
+const BANK={
+ 1:[
+  {q:"Combien de joueurs par équipe en foot à 8 ?",o:["7","8","9","10"],c:1},
+  {q:"Quel carton l'arbitre montre-t-il pour exclure un joueur ?",o:["Jaune","Rouge","Vert","Bleu"],c:1},
+  {q:"Dans sa surface, avec quoi le gardien peut-il attraper le ballon ?",o:["Les mains, seulement dans sa surface","Les mains partout sur le terrain","Les mains dans tout son camp","Seulement les pieds"],c:0},
+  {q:"Le ballon sort sur le côté : comment le remet-on en jeu ?",o:["Une touche à la main","Un corner","Une touche au pied","Un coup franc"],c:0},
+  {q:"Quand marque-t-on un but ?",o:["Quand le ballon franchit entièrement la ligne","Quand le ballon touche la ligne","Quand le ballon est à moitié dans le but","Quand il touche le filet"],c:0},
+  {q:"Cette saison, combien de temps dure un match U13 ?",o:["2 x 30 min","2 x 35 min","2 x 40 min","2 x 25 min"],c:1},
+  {q:"Avec quelle taille de ballon joue-t-on en U13 ?",o:["Taille 3","Taille 4","Taille 5","Taille 4 allégé"],c:1},
+  {q:"Qui fait respecter les règles pendant le match ?",o:["L'arbitre","Le capitaine","L'éducateur","Le juge de touche"],c:0},
+  {q:"Le protège-tibias est...",o:["Obligatoire","Conseillé mais facultatif","Obligatoire seulement en match","Réservé au gardien"],c:0},
+  {q:"Le foot à 8 se joue sur...",o:["Un demi-terrain de foot à 11","Un terrain de foot à 11 complet","Un terrain de futsal","Un tiers de terrain"],c:0},
+  {q:"Combien y a-t-il de mi-temps dans un match ?",o:["2","1","3","4"],c:0},
+  {q:"Où doivent être relevées les chaussettes ?",o:["Sous les genoux, sur les protège-tibias","Aux chevilles","Par-dessus le short","Peu importe"],c:0},
+  {q:"Qu'est-ce que porte le capitaine ?",o:["Un brassard","Des gants","Une casquette","Le numéro 10"],c:0},
+  {q:"Le gardien doit porter des couleurs ?",o:["Différentes des autres joueurs","Comme ses coéquipiers","Comme l'arbitre","Peu importe"],c:0},
+  {q:"Après l'entraînement, dans quel état laisse-t-on le terrain et le vestiaire ?",o:["Propres, on ramasse ses déchets","Sales","Avec les bouteilles par terre","Peu importe"],c:0},
+ ],
+ 2:[
+  {q:"Pendant l'effort, que vaut-il mieux boire ?",o:["De l'eau","Une boisson énergisante","Un jus de fruits","Un soda light"],c:0},
+  {q:"Avant de jouer, que faut-il faire ?",o:["S'échauffer","S'étirer longtemps à froid","Sprinter à fond tout de suite","Se reposer assis"],c:0},
+  {q:"À la fin du match, quel geste avec l'adversaire ?",o:["Lui serrer la main","Le féliciter seulement si on gagne","Partir directement","Refaire le match en discutant"],c:0},
+  {q:"Combien d'heures un jeune doit-il dormir pour récupérer ?",o:["9 à 11 heures","6 à 7 heures","7 à 8 heures","12 à 14 heures"],c:0},
+  {q:"Que fait-on de ses déchets au stade ?",o:["On les trie à la poubelle","On les met tous dans une seule poubelle","On les laisse au bord du terrain","On les donne à l'arbitre"],c:0},
+  {q:"Avant un match, quel type de repas privilégier ?",o:["Des féculents (pâtes, riz)","Un repas gras et copieux","Des sucreries pour l'énergie","Rien, jouer à jeun"],c:0},
+  {q:"Comment aller au match de façon écolo ?",o:["En covoiturage ou en bus","Chacun dans sa voiture","En taxi individuel","Peu importe le moyen"],c:0},
+  {q:"Comment être un bon coéquipier ?",o:["Encourager les autres","Marquer un maximum de buts soi-même","Garder le ballon pour briller","Corriger les autres à voix haute"],c:0},
+  {q:"Que récompense le carton vert ?",o:["Un bon comportement","Un but exceptionnel","Une belle action technique","Le meilleur buteur"],c:0},
+  {q:"Mieux qu'une bouteille en plastique pour boire ?",o:["Une gourde réutilisable","Une plus grande bouteille en plastique","Un gobelet en carton","Une canette"],c:0},
+  {q:"Le fair-play : quand se fait le check (poignée de main) ?",o:["Au début et à la fin de chaque match","Seulement à la fin","Seulement au début","Jamais"],c:0},
+  {q:"Si tu es blessé ou que tu te sens mal, que fais-tu ?",o:["Tu préviens ton éducateur","Tu continues sans rien dire","Tu caches la douleur","Tu pars sans prévenir"],c:0},
+  {q:"Un coéquipier rate une action : que fais-tu ?",o:["Tu le soutiens et l'encourages","Tu le critiques","Tu te moques","Tu l'ignores"],c:0},
+  {q:"Le respect, c'est respecter ?",o:["Les règles, l'arbitre et les adversaires","Seulement ses amis","Seulement les gagnants","Personne"],c:0},
+  {q:"Pour être en bonne santé, que faut-il manger chaque jour ?",o:["Des fruits et des légumes","Surtout des sucreries","Surtout du gras","Rien de spécial"],c:0},
+  {q:"La veille d'un match, quel repas est conseillé ?",o:["Un repas avec des féculents (pâtes, riz)","Un repas très gras","Beaucoup de bonbons","Sauter le repas"],c:0},
+  {q:"Que vaut-il mieux éviter juste avant de jouer ?",o:["Les aliments gras et les sodas","L'eau","Les pâtes","Les fruits"],c:0},
+  {q:"Pourquoi bien dormir est-il important pour un sportif ?",o:["Pour récupérer et être en forme","Ça ne sert à rien","Pour manger moins","Pour courir moins vite"],c:0},
+  {q:"La veille d'un match, il vaut mieux ?",o:["Se coucher tôt et bien dormir","Se coucher très tard","Jouer aux écrans toute la nuit","Ne pas dormir"],c:0},
+  {q:"Avant de dormir, qu'est-ce qui aide à mieux récupérer ?",o:["Éviter les écrans avant le coucher","Jouer longtemps aux jeux vidéo","Boire un soda","Manger beaucoup de sucre"],c:0},
+  {q:"Quel moyen de transport est le plus écologique pour un petit trajet ?",o:["Le vélo ou la marche","La voiture tout seul","Le scooter","L'avion"],c:0},
+  {q:"Pour économiser l'eau après la douche au club ?",o:["Fermer le robinet","Laisser couler l'eau","Prendre une très longue douche","Peu importe"],c:0},
+ ],
+ 3:[
+  {q:"Peut-on marquer directement sur le coup d'envoi ?",o:["Non","Oui","Oui, seulement de loin","Oui si personne d'autre ne touche"],c:0},
+  {q:"Ballon sorti derrière, dernier touché par un défenseur : on reprend par ?",o:["Un corner","Un coup de pied de but","Une touche","Un coup franc"],c:0},
+  {q:"Ballon sorti derrière, dernier touché par un attaquant : on reprend par ?",o:["Un coup de pied de but","Un corner","Une touche","Une balle à terre"],c:0},
+  {q:"Comment se joue la touche ?",o:["À deux mains, les deux pieds au sol","À une seule main","Au pied","À deux mains en pleine course"],c:0},
+  {q:"Peut-on marquer directement sur une touche ?",o:["Non","Oui","Oui si le gardien la touche","Oui de la tête"],c:0},
+  {q:"Au coup d'envoi, le ballon peut être botté ?",o:["Vers l'avant ou vers l'arrière","Seulement vers l'avant","Seulement vers l'arrière","Dans n'importe quelle direction"],c:0},
+  {q:"Après un but, on reprend le jeu par ?",o:["Un coup d'envoi au milieu","Un coup de pied de but","Une touche","Un corner"],c:0},
+  {q:"Un but est valable quand le ballon a franchi ?",o:["Entièrement la ligne de but","La moitié de la ligne","Le premier poteau","La surface de réparation"],c:0},
+  {q:"Le corner, en foot à 8, se joue ?",o:["Au pied","À la main","À la tête","Au choix du joueur"],c:0},
+  {q:"Sur une touche, où remet-on le ballon ?",o:["À l'endroit où il est sorti","Au corner le plus proche","À la ligne médiane","Où le joueur veut"],c:0},
+  {q:"Le corner se joue au pied, avec l'adversaire à ?",o:["6 mètres","2 mètres","9 mètres","5 mètres"],c:0},
+  {q:"Qui peut toucher le ballon à la main sur le terrain ?",o:["Le gardien dans sa surface","N'importe quel joueur","Le capitaine","Personne"],c:0},
+  {q:"Un joueur peut-il entrer et sortir du terrain quand il veut ?",o:["Non, à un arrêt de jeu avec l'accord de l'arbitre","Oui, quand il veut","Seulement à la mi-temps","Jamais"],c:0},
+  {q:"Sur un corner, le ballon est en jeu quand ?",o:["Il a été botté et a bougé","Dès qu'on le pose","Après 5 secondes","Quand le gardien le touche"],c:0},
+ ],
+ 4:[
+  {q:"Le penalty, en foot à 8, se tire à ?",o:["9 mètres","11 mètres","8 mètres","10 mètres"],c:0},
+  {q:"Sur un coup franc, les adversaires sont à ?",o:["6 mètres","9 mètres","5 mètres","9,15 mètres"],c:0},
+  {q:"Le foot à 8 se joue sur ?",o:["Un demi-terrain de foot à 11","Un terrain complet","Un terrain de futsal","Un tiers de terrain"],c:0},
+  {q:"Le but, en foot à 8, fait environ ?",o:["6 mètres de large","7,32 mètres de large","5 mètres de large","8 mètres de large"],c:0},
+  {q:"En U13, le hors-jeu s'applique à partir de ?",o:["La ligne médiane","La ligne des 13 mètres","La surface de but","Le rond central"],c:0},
+  {q:"Le ballon taille 4 est utilisé par quelles catégories ?",o:["U10 à U13","U6 à U9","U14 et plus","U8 à U11"],c:0},
+  {q:"On joue à combien contre combien en foot à 8 ?",o:["8 contre 8","7 contre 7","9 contre 9","8 contre 8 sans gardien"],c:0},
+  {q:"Sur un penalty, où doivent être les adversaires ?",o:["À 6 m et hors de la surface","À 9,15 m","Derrière le tireur","Hors du terrain"],c:0},
+  {q:"En U13 (2026-2027), une mi-temps dure ?",o:["35 minutes","30 minutes","40 minutes","45 minutes"],c:0},
+  {q:"Le terrain de foot à 8 mesure en longueur ?",o:["60 à 70 mètres","100 mètres","45 mètres","80 mètres"],c:0},
+  {q:"Le terrain de foot à 8 mesure en largeur ?",o:["45 à 50 mètres","60 à 70 mètres","30 mètres","80 mètres"],c:0},
+  {q:"La zone technique (banc) mesure environ ?",o:["3 m x 5 m","10 m x 10 m","1 m x 2 m","5 m x 8 m"],c:0},
+  {q:"Quelle est la hauteur d'un but en foot à 8 ?",o:["2,10 mètres","2,44 mètres","2 mètres","3 mètres"],c:0},
+  {q:"Quelles sont les dimensions d'un but de foot à 8 ?",o:["6 m x 2,10 m","7,32 m x 2,44 m","5 m x 2 m","6 m x 3 m"],c:0},
+  {q:"Le but de foot à 8 doit être ?",o:["Fixé au sol et équipé de filets","Posé librement","Sans filet","Sur roulettes"],c:0},
+  {q:"Le but de foot à 8, comparé à celui du foot à 11, est ?",o:["Plus petit","Identique","Plus grand","Sans barre"],c:0},
+ ],
+ 5:[
+  {q:"Le gardien garde le ballon plus de 8 secondes : que se passe-t-il ?",o:["Un corner pour l'adversaire","Un coup franc indirect","Un penalty","Un avertissement"],c:0},
+  {q:"Le gardien peut-il prendre à la main une passe faite au pied par un partenaire ?",o:["Non, coup franc indirect","Oui","Oui dans sa surface","Oui une seule fois"],c:0},
+  {q:"Le gardien peut-il prendre à la main la touche d'un partenaire ?",o:["Non","Oui","Oui s'il reste dans sa surface","Oui si la touche est courte"],c:0},
+  {q:"En foot à 8, le gardien peut-il dégager de volée ?",o:["Non, c'est interdit","Oui","Oui pour dégager loin","Oui hors de sa surface"],c:0},
+  {q:"Un joueur est hors-jeu s'il est plus près du but que ?",o:["Le ballon et l'avant-dernier adversaire","Le dernier adversaire seulement","Le gardien seulement","Le ballon seulement"],c:0},
+  {q:"Comment l'arbitre décompte-t-il les 5 dernières secondes du gardien ?",o:["Main levée, doigts baissés un à un","En sifflant chaque seconde","À voix haute","Avec un chrono affiché"],c:0},
+  {q:"Peut-on être hors-jeu dans son propre camp ?",o:["Non","Oui","Oui près du rond central","Oui sur un corner"],c:0},
+  {q:"Comment le gardien relance-t-il le jeu ?",o:["À la main, ou au pied ballon posé au sol","De volée pour aller plus loin","Uniquement à la main","En dribblant hors de sa surface"],c:0},
+  {q:"Après un hors-jeu signalé, le jeu reprend par ?",o:["Un coup franc indirect","Un coup franc direct","Un penalty","Une touche"],c:0},
+  {q:"Peut-on être hors-jeu sur une rentrée de touche ?",o:["Non","Oui","Oui si on reçoit devant","Oui dans la surface"],c:0},
+  {q:"Le gardien dégage de volée : quelle sanction ?",o:["Coup franc indirect sur la ligne des 13 m","Un corner","Un penalty","Rien"],c:0},
+  {q:"Être en position de hors-jeu est sanctionné ?",o:["Seulement si le joueur prend part à l'action","Toujours, dès qu'il est placé","Dès qu'il court","Jamais"],c:0},
+ ],
+ 6:[
+  {q:"Une faute de main volontaire (hors gardien) est sanctionnée par ?",o:["Un coup franc","Un carton jaune direct","Un penalty partout sur le terrain","Rien si le ballon va au gardien"],c:0},
+  {q:"Le carton jaune signifie ?",o:["Un avertissement","Une exclusion de 2 minutes","Une exclusion définitive","Un but refusé"],c:0},
+  {q:"Le carton rouge signifie ?",o:["Une exclusion définitive","Un avertissement","Une exclusion temporaire","Un penalty"],c:0},
+  {q:"Sur un coup franc direct, peut-on marquer directement ?",o:["Oui","Non","Seulement de la tête","Seulement hors de la surface"],c:0},
+  {q:"Sur un coup franc, les adversaires doivent être à ?",o:["6 mètres","9,15 mètres","5 mètres","9 mètres"],c:0},
+  {q:"Rentrée de touche trop lente : que fait l'arbitre ?",o:["Il compte 5 secondes puis donne la touche à l'adversaire","Il donne un carton jaune direct","Il siffle un coup franc","Il laisse jouer"],c:0},
+  {q:"Après avoir tiré un coup franc, peux-tu retoucher le ballon avant un autre joueur ?",o:["Non","Oui","Oui après 2 secondes","Oui hors de la surface"],c:0},
+  {q:"Bousculer volontairement un adversaire, c'est ?",o:["Une faute","Autorisé si on prend le ballon","Autorisé épaule contre épaule","Un simple contact permis"],c:0},
+  {q:"Qui peut être juge de touche en U13 ?",o:["Un joueur remplaçant","Un spectateur","Le gardien adverse","Un parent dans les tribunes"],c:0},
+  {q:"Une faute grave ou violente entraîne ?",o:["Un carton rouge","Un carton jaune","Un simple coup franc","Un avertissement oral"],c:0},
+  {q:"En foot à 8, les tacles pour jouer le ballon sont ?",o:["Autorisés","Interdits","Autorisés seulement debout","Interdits dans la surface"],c:0},
+  {q:"En foot à 8, le jeu de tête est ?",o:["Toléré","Interdit","Obligatoire","Autorisé sans limite"],c:0},
+  {q:"Faire trébucher un adversaire, c'est ?",o:["Une faute (coup franc direct)","Autorisé","Un corner","Du fair-play"],c:0},
+  {q:"Tenir ou tirer le maillot d'un adversaire, c'est ?",o:["Une faute","Autorisé","Un corner","Rien"],c:0},
+  {q:"Jouer de manière dangereuse, c'est ?",o:["Une faute","Permis si on touche le ballon","Un corner","Rien"],c:0},
+  {q:"Combien de cartons existent en foot à 8 (U10-U13) ?",o:["2 (jaune et rouge)","3","1","4"],c:0},
+  {q:"Qui prend la décision finale sur le terrain ?",o:["L'arbitre central","Le capitaine","L'entraîneur","Le jeune assistant"],c:0},
+ ],
+ 7:[
+  {q:"Depuis 2025, un gardien qui garde le ballon plus de 8 secondes concède ?",o:["Un corner","Un coup franc indirect","Un penalty","Un carton jaune"],c:0},
+  {q:"L'ancienne règle des 6 secondes du gardien ?",o:["N'existe plus, remplacée par les 8 secondes","Existe toujours","Est passée à 4 secondes","Ne concerne que les pros"],c:0},
+  {q:"Une rentrée de touche trop lente déclenche un décompte de ?",o:["5 secondes","6 secondes","8 secondes","3 secondes"],c:0},
+  {q:"Cette saison, un match U13 dure ?",o:["2 x 35 min","2 x 30 min","2 x 40 min","2 x 25 min"],c:0},
+  {q:"En U13, on joue avec un ballon de taille ?",o:["4","5","3","4 ou 5 au choix"],c:0},
+  {q:"Quelle organisation gère le football en France ?",o:["La FFF","La FIFA","L'UEFA","La LFP"],c:0},
+  {q:"Tous les combien a lieu la Coupe du Monde ?",o:["4 ans","2 ans","3 ans","5 ans"],c:0},
+  {q:"En quelles années la France a-t-elle gagné la Coupe du Monde ?",o:["1998 et 2018","1998 et 2006","2006 et 2018","1984 et 2000"],c:0},
+  {q:"La coupe ouverte à tous les clubs français s'appelle ?",o:["La Coupe de France","La Coupe de la Ligue","Le Trophée des Champions","La Ligue des Champions"],c:0},
+  {q:"Le grand rendez-vous des U13 (départemental, régional, finale) s'appelle ?",o:["Le Festival Foot U13 Pitch","La Danone Nations Cup","La Coupe Gambardella","Le Mondial Pupilles"],c:0},
+  {q:"En U12-U13, le classement se fait ?",o:["Sur la phase","À la journée","À chaque match","Il n'y a pas de classement"],c:0},
+  {q:"Dans quel pays se déroule la Coupe du Monde féminine 2027 ?",o:["Le Brésil","La France","L'Espagne","L'Australie"],c:0},
+  {q:"La Coupe du Monde féminine 2027 est la première organisée sur quel continent ?",o:["L'Amérique du Sud","L'Europe","L'Afrique","L'Asie"],c:0},
+  {q:"Quel pays est champion du monde féminin en titre (2023) ?",o:["L'Espagne","Les États-Unis","La France","L'Allemagne"],c:0},
+  {q:"Combien d'équipes participent à la Coupe du Monde féminine 2027 ?",o:["32","24","16","48"],c:0},
+  {q:"Dans quel stade mythique ont lieu l'ouverture et la finale en 2027 ?",o:["Le Maracanã","Le Stade de France","Wembley","Le Camp Nou"],c:0},
+  {q:"Quelle joueuse détient le Ballon d'Or féminin (3 fois de suite, dont 2025) ?",o:["Aitana Bonmatí","Alexia Putellas","Ada Hegerberg","Sam Kerr"],c:0},
+  {q:"De quel pays vient Aitana Bonmatí, la meilleure joueuse du moment ?",o:["L'Espagne","La France","L'Angleterre","L'Allemagne"],c:0},
+  {q:"Dans quel grand club joue Aitana Bonmatí ?",o:["Le FC Barcelone","Le Real Madrid","L'Olympique Lyonnais","Le PSG"],c:0},
+  {q:"Qui est le sélectionneur de l'équipe de France féminine ?",o:["Laurent Bonadei","Hervé Renard","Didier Deschamps","Corinne Diacre"],c:0},
+  {q:"Comment surnomme-t-on l'équipe de France féminine ?",o:["Les Bleues","Les Lionnes","Les Fenottes","Les Canaris"],c:0},
+  {q:"L'équipe de France féminine a-t-elle déjà gagné la Coupe du Monde ?",o:["Non, jamais","Oui, en 2019","Oui, en 2011","Oui, en 2023"],c:0},
+  {q:"Quelle attaquante vedette joue pour l'équipe de France féminine ?",o:["Marie-Antoinette Katoto","Aitana Bonmatí","Alexia Putellas","Sam Kerr"],c:0},
+  {q:"En quelle année a eu lieu la première Coupe du Monde féminine ?",o:["1991","1999","2011","1985"],c:0},
+  {q:"Combien de Ballons d'Or Aitana Bonmatí a-t-elle gagnés ?",o:["3","1","2","5"],c:0},
+  {q:"Où s'est déroulée la Coupe du Monde féminine 2023 ?",o:["Australie et Nouvelle-Zélande","France","Brésil","États-Unis"],c:0},
+ ],
+ 8:[
+  {q:"Combien de remplaçants maximum par équipe en foot à 8 ?",o:["4","3","5","7"],c:0},
+  {q:"Un match ne peut plus se jouer si une équipe compte moins de ?",o:["7 joueurs","6 joueurs","5 joueurs","8 joueurs"],c:0},
+  {q:"Sur une rentrée de touche, les adversaires doivent être à ?",o:["2 mètres","6 mètres","5 mètres","9 mètres"],c:0},
+  {q:"Comment se fait une rentrée de touche ?",o:["À deux mains, par-dessus la tête, pieds au sol","Au pied","À une seule main au-dessus de l'épaule","À deux mains à hauteur de poitrine"],c:0},
+  {q:"En foot à 8 (U10-U13), le carton blanc (exclusion temporaire) ?",o:["N'existe pas","Dure 5 minutes","Dure 10 minutes","Remplace le carton jaune"],c:0},
+  {q:"En cas de contestation manifeste de l'arbitre, la sanction spécifique du foot à 8 est ?",o:["Un coup de pied de pénalité","Un penalty à 9 m","Un carton rouge direct","Un corner"],c:0},
+  {q:"Le coup de pied de pénalité (contestation) se tire à ?",o:["13 mètres, sans mur","9 mètres","6 mètres","11 mètres"],c:0},
+  {q:"En cas d'égalité à la fin d'un match, y a-t-il des tirs au but ?",o:["Non, sauf lors des tournois FFF de fin de saison","Oui, toujours","Oui, 5 tirs chacun","On rejoue le match"],c:0},
+  {q:"Quand une équipe a 9 joueurs, qui arbitre à la touche ?",o:["Le joueur suppléant, tutoré","Un parent","Le gardien adverse","L'entraîneur"],c:0},
+  {q:"Le coup de pied de but (sortie de but) se joue dans une zone de ?",o:["6 m x 9 m","5 m x 5 m","16 m x 9 m","9 m x 9 m"],c:0},
+  {q:"Sur un tournoi à 8 équipes, l'arbitrage au centre se fait ?",o:["À deux, un demi-terrain par enfant","À un seul arbitre","Sans arbitre","Par les entraîneurs"],c:0},
+  {q:"En U12-U13, la pause coaching dure ?",o:["2 minutes au milieu de chaque période","5 minutes à la mi-temps","10 minutes","Il n'y en a pas"],c:0},
+  {q:"Une équipe U12-U13 peut aligner jusqu'à combien de U11 ?",o:["3","1","5","Aucun"],c:0},
+  {q:"Le ballon est hors du jeu quand ?",o:["Il franchit entièrement une ligne","Il touche la ligne","Il ralentit","Un joueur tombe"],c:0},
+  {q:"Une rentrée de touche mal faite est ?",o:["À refaire une fois, puis donnée à l'adversaire","Un penalty","Un carton","Un corner"],c:0},
+  {q:"Combien d'accompagnateurs dans la zone technique ?",o:["2","1","4","Autant qu'on veut"],c:0},
+  {q:"Qui peut arbitrer au centre en foot à 8 ?",o:["Un adulte licencié ou un jeune d'une catégorie supérieure","N'importe quel parent","Le capitaine d'une équipe","Personne"],c:0},
+  {q:"Qui arbitre à la touche (arbitrage des jeunes par les jeunes) ?",o:["Un enfant, tutoré","Un parent","L'entraîneur","Le gardien adverse"],c:0},
+  {q:"Que fait le jeune arbitre assistant à la touche ?",o:["Il signale les sorties de ballon et les hors-jeu","Il donne les cartons","Il marque les buts","Il choisit l'équipe"],c:0},
+  {q:"Concernant les protège-tibias, l'arbitre ?",o:["Vérifie qu'ils sont portés","Choisit leur taille","Les interdit","Ne regarde pas"],c:0},
+ ],
+ 9:[
+  {q:"Que veut dire PEF ?",o:["Programme Éducatif Fédéral","Programme d'Entraînement Foot","Plan d'Éducation Française","Projet Enfants Football"],c:0},
+  {q:"Qui a créé le Programme Éducatif Fédéral ?",o:["La FFF","La FIFA","L'UEFA","Le club"],c:0},
+  {q:"Combien de grandes thématiques compte le PEF ?",o:["6","3","4","10"],c:0},
+  {q:"Laquelle de ces thématiques fait partie du PEF ?",o:["La Santé","La Richesse","La Compétition à tout prix","La Victoire"],c:0},
+  {q:"PEF, thème Santé : quelle bonne habitude est encouragée ?",o:["Bien s'hydrater et dormir assez","Manger beaucoup de bonbons","Sauter le petit-déjeuner","Jouer sans s'échauffer"],c:0},
+  {q:"PEF, thème Environnement : quel bon geste fait-on ?",o:["Trier ses déchets, utiliser une gourde","Jeter ses déchets au sol","Gaspiller l'eau","Venir seul en voiture"],c:0},
+  {q:"PEF, thème Fair-play : quel comportement est valorisé ?",o:["Respecter l'arbitre et les adversaires","Contester chaque décision","Se moquer des perdants","Tricher pour gagner"],c:0},
+  {q:"PEF, thème Engagement citoyen : qu'encourage-t-on ?",o:["Aider et être solidaire","Ne penser qu'à soi","Exclure les nouveaux","Se disputer"],c:0},
+  {q:"Quelle valeur est mise en avant par le PEF ?",o:["Le respect","La triche","L'égoïsme","La violence"],c:0},
+  {q:"À quoi sert le PEF ?",o:["Apprendre des valeurs par le football","Gagner de l'argent","Devenir pro à tout prix","Jouer sans règles"],c:0},
+  {q:"Le thème Règles du jeu et arbitrage du PEF apprend à ?",o:["Connaître les règles et respecter l'arbitrage","Marquer plus de buts","Courir plus vite","Gagner de l'argent"],c:0},
+  {q:"Le thème Culture foot du PEF, c'est ?",o:["Découvrir l'histoire et les valeurs du foot","Apprendre à tricher","Choisir un club pro","Rien"],c:0},
+  {q:"Dans le PEF, le fair-play envers l'arbitre, c'est ?",o:["Le respecter même quand on n'est pas d'accord","Contester fort","Bouder","Quitter le terrain"],c:0},
+  {q:"Dans le thème Santé du PEF, que conseille-t-on pour l'alimentation ?",o:["Manger équilibré (fruits, légumes, féculents)","Manger surtout des bonbons","Sauter des repas","Manger n'importe quoi"],c:0},
+  {q:"Dans le thème Santé du PEF, pour le sommeil on recommande ?",o:["Dormir suffisamment (environ 9 à 11 h)","Dormir 4 heures","Veiller tard chaque soir","Peu importe"],c:0},
+  {q:"Trier ses déchets permet de ?",o:["Recycler et protéger la nature","Salir le stade","Gaspiller","Rien du tout"],c:0},
+  {q:"Pour économiser l'énergie au club, on ?",o:["Éteint les lumières en partant","Laisse tout allumé","Laisse les douches couler","Chauffe fenêtres ouvertes"],c:0},
+  {q:"Le thème Environnement du PEF apprend à ?",o:["Respecter et protéger la nature","Polluer","Gaspiller l'eau","Ignorer les déchets"],c:0},
+  {q:"Pourquoi utiliser une gourde plutôt que des bouteilles en plastique ?",o:["Pour réduire les déchets","Pour boire plus","Parce que c'est plus lourd","Ça ne change rien"],c:0},
+ ],
+};
+
+let store={};
+try{ store=JSON.parse(localStorage.getItem('lionceaux')||'{}'); }catch(e){ store={}; }
+function save(){ try{ localStorage.setItem('lionceaux',JSON.stringify(store)); }catch(e){} }
+
+let state={pseudo:"",mascot:"",maxUnlocked:store.maxUnlocked||1,best:store.best||{},level:null,questions:[],idx:0,score:0,answered:false,submitted:false};
+
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]]}return a}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);if(id==='levels')renderLevels();}
+
+function pickMascot(el){document.querySelectorAll('#mascotGrid .pick').forEach(p=>p.classList.remove('sel'));el.classList.add('sel');state.mascot=el.dataset.name;checkReady();}
+function checkReady(){state.pseudo=document.getElementById('pseudoInput').value.trim();const ok=document.getElementById('nameOk');const r=state.pseudo.length>0&&state.mascot;ok.disabled=!r;ok.style.opacity=r?1:.5;}
+
+function completedCount(){return Object.keys(state.best).filter(k=>state.best[k]>=PASS).length;}
+function currentRank(){const n=completedCount();let r=RANKS[0];RANKS.forEach(x=>{if(n>=x.min)r=x;});return r;}
+
+function renderLevels(){
+  const rk=currentRank();
+  document.getElementById('rankIcon').textContent=rk.icon;
+  document.getElementById('rankName').textContent=rk.name;
+  const done=completedCount();
+  document.getElementById('rankSub').textContent=done>=LEVELS.length?"Tous les niveaux validés, bravo !":`${done}/${LEVELS.length} niveaux validés`;
+  const list=document.getElementById('levelList');list.innerHTML='';
+  LEVELS.forEach(L=>{
+    const locked=L.id>state.maxUnlocked;
+    const b=state.best[L.id];
+    const div=document.createElement('div');
+    div.className='lvl'+(locked?' lock':'')+(b>=PASS?' done':'');
+    let mark=locked?'🔒':(b!=null?`${b}/10`:'');
+    div.innerHTML=`<span class="em">${locked?'🔒':L.emoji}</span><div class="info"><b>Niveau ${L.id} · ${escapeHtml(L.name)}</b><small>${escapeHtml(L.desc)}</small></div><span class="mark">${mark}</span>`;
+    if(!locked) div.onclick=()=>startLevel(L.id);
+    list.appendChild(div);
+  });
+}
+
+function buildLevel(id){
+  const qs=shuffle(BANK[id]).slice(0,10);
+  const n=qs.length;
+  let pool=[];while(pool.length<n)pool=pool.concat(shuffle([0,1,2,3]));
+  pool=pool.slice(0,n);
+  let targets=shuffle(pool);
+  for(let a=0;a<300;a++){
+    let ok=true;
+    for(let i=1;i<targets.length;i++){if(targets[i]===targets[i-1]){ok=false;break;}}
+    if(ok)break;
+    targets=shuffle(pool);
+  }
+  return qs.map((Q,i)=>{
+    const correct=Q.o[Q.c];
+    const opts=shuffle(Q.o.filter((_,k)=>k!==Q.c));
+    const pos=targets[i];opts.splice(pos,0,correct);
+    return {q:Q.q,opts:opts,correct:pos};
+  });
+}
+function startLevel(id){
+  state.level=id;state.questions=buildLevel(id);
+  state.idx=0;state.score=0;state.answered=false;state.submitted=false;
+  go('quiz');render();
+}
+
+function render(){
+  const Q=state.questions[state.idx];state.answered=false;
+  document.getElementById('counter').textContent=`${state.idx+1}/10`;
+  document.getElementById('liveScore').textContent=`⚽ ${state.score}`;
+  document.getElementById('fill').style.width=`${state.idx/10*100}%`;
+  document.getElementById('qtheme').textContent=`Niveau ${state.level} · ${LEVELS[state.level-1].name}`;
+  document.getElementById('qtext').textContent=Q.q;
+  const fb=document.getElementById('feedback');fb.className='feedback';fb.innerHTML='';
+  document.getElementById('nextBtn').classList.add('hidden');
+  const wrap=document.getElementById('answers');wrap.innerHTML='';
+  Q.opts.forEach((txt,oi)=>{const b=document.createElement('button');b.className='ans';b.textContent=txt;b.onclick=()=>answer(b,oi===Q.correct,Q);wrap.appendChild(b);});
+}
+
+function answer(btn,correct,Q){
+  if(state.answered)return;state.answered=true;
+  [...document.querySelectorAll('#answers .ans')].forEach(b=>{b.classList.add('lock');if(b.textContent===Q.opts[Q.correct])b.classList.add('good');});
+  const fb=document.getElementById('feedback');
+  if(correct){state.score++;btn.classList.add('good');fb.innerHTML='✅ Bravo&nbsp;!';}
+  else{btn.classList.add('bad');fb.innerHTML='❌ Perdu&nbsp;! <small>Bonne réponse : '+escapeHtml(Q.opts[Q.correct])+'</small>';}
+  fb.classList.add('show');
+  document.getElementById('liveScore').textContent=`⚽ ${state.score}`;
+  document.getElementById('fill').style.width=`${(state.idx+1)/10*100}%`;
+  const nb=document.getElementById('nextBtn');nb.classList.remove('hidden');
+  nb.textContent=state.idx===9?'Voir le résultat ›':'Suivant ›';
+}
+
+function nextQuestion(){if(state.idx<9){state.idx++;render();}else showResult();}
+
+async function showResult(){
+  go('result');
+  const passed=state.score>=PASS;
+  document.getElementById('resEmoji').textContent=passed?'🏆':'💪';
+  document.getElementById('resName').textContent=`${state.pseudo} · Niveau ${state.level}`;
+  const fs=document.getElementById('finalScore');fs.textContent=state.score;fs.className=passed?'ok':'ko';
+  const msg=document.getElementById('msg');
+  if(state.best[state.level]==null||state.score>state.best[state.level]){state.best[state.level]=state.score;store.best=state.best;}
+  let unlockedNow=false;
+  if(passed&&state.level===state.maxUnlocked&&state.level<LEVELS.length){state.maxUnlocked++;store.maxUnlocked=state.maxUnlocked;unlockedNow=true;}
+  store.best=state.best;store.maxUnlocked=state.maxUnlocked;save();
+  msg.textContent=passed?(unlockedNow?`Validé ! Niveau ${state.level+1} débloqué 🔓`:"Niveau validé, bravo !"):"Pas encore validé (7/10 minimum). Réessaie !";
+  const btns=document.getElementById('resBtns');btns.innerHTML='';
+  if(passed&&state.level<LEVELS.length){const b=document.createElement('button');b.className='btn';b.textContent='Niveau suivant ›';b.onclick=()=>startLevel(state.level+1);btns.appendChild(b);}
+  const rb=document.createElement('button');rb.className='btn'+((passed&&state.level<LEVELS.length)?' ghost':'');rb.textContent='Rejouer ce niveau';rb.onclick=()=>startLevel(state.level);btns.appendChild(rb);
+  const lb=document.createElement('button');lb.className='btn ghost';lb.textContent='Choisir un niveau';lb.onclick=()=>go('levels');btns.appendChild(lb);
+  if(!state.submitted){state.submitted=true;await submitScore(state.pseudo,state.level,state.score);}
+  loadLeaderboard('lbBody');
+}
+
+async function submitScore(pseudo,niveau,score){
+  if(!sb)return;
+  try{ await sb.from('classement').insert({pseudo:pseudo.slice(0,16),niveau,score}); }catch(e){ console.error(e); }
+}
+async function loadLeaderboard(target){
+  const box=document.getElementById(target);
+  if(!sb){box.innerHTML='<div class="lbnote">Classement à configurer (voir instructions).</div>';return;}
+  box.innerHTML='<div class="lbnote">Chargement…</div>';
+  try{
+    const {data,error}=await sb.from('classement').select('pseudo,niveau,score').order('niveau',{ascending:false}).order('score',{ascending:false}).limit(10);
+    if(error)throw error;
+    if(!data||!data.length){box.innerHTML='<div class="lbnote">Sois le premier à marquer un score !</div>';return;}
+    box.innerHTML=data.map((r,i)=>`<div class="lbrow"><span class="lbrank">${i+1}</span><span class="lbname">${escapeHtml(r.pseudo)}</span><span class="lblvl">Niv ${r.niveau}</span><span class="lbscore">${r.score}/10</span></div>`).join('');
+  }catch(e){box.innerHTML='<div class="lbnote">Classement indisponible pour le moment.</div>';}
+}
+function showLeaderboardScreen(){go('board');loadLeaderboard('boardBody');}
+</script>
+</body>
+</html>
