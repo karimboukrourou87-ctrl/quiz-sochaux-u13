@@ -113,7 +113,20 @@
         <div class="pick" data-name="Attaquant" onclick="pickMascot(this)"><span class="face">⚡</span>Flèche<br><small>l'attaquant</small></div>
         <div class="pick" data-name="Buteur" onclick="pickMascot(this)"><span class="face">🔥</span>Tonnerre<br><small>le buteur</small></div>
       </div>
-      <button class="btn" id="nameOk" disabled style="opacity:.5" onclick="go('levels')">OK</button>
+      <button class="btn" id="nameOk" disabled style="opacity:.5" onclick="go('mode')">OK</button>
+    </div>
+  </section>
+
+  <section class="screen" id="mode">
+    <div class="card">
+      <span class="lion">🦁</span>
+      <div class="badge">Choisis ton mode</div>
+      <h1 style="font-size:1.9rem">Comment jouer ?</h1>
+      <p class="sub">Entraîne-toi d'abord, puis lance-toi dans le classement.</p>
+      <button class="btn" onclick="setMode('entrainement')">🎓 Entraînement</button>
+      <p class="sub" style="margin-top:8px;font-size:.85rem">Tous les niveaux ouverts · le score ne compte pas</p>
+      <button class="btn" onclick="setMode('classement')">🏆 Classement</button>
+      <p class="sub" style="margin-top:8px;font-size:.85rem">Le jeu officiel · ton score entre dans le classement</p>
     </div>
   </section>
 
@@ -123,6 +136,7 @@
       <div class="badge">Choisis ton niveau</div>
       <div id="levelList"></div>
       <button class="btn ghost" onclick="showLeaderboardScreen()">🏅 Voir le classement</button>
+      <button class="btn ghost" onclick="go('mode')">↔ Changer de mode</button>
     </div>
   </section>
 
@@ -381,7 +395,8 @@ let store={};
 try{ store=JSON.parse(localStorage.getItem('lionceaux')||'{}'); }catch(e){ store={}; }
 function save(){ try{ localStorage.setItem('lionceaux',JSON.stringify(store)); }catch(e){} }
 
-let state={pseudo:"",mascot:"",maxUnlocked:store.maxUnlocked||1,best:store.best||{},level:null,questions:[],idx:0,score:0,answered:false,submitted:false};
+let state={pseudo:"",mascot:"",mode:"classement",maxUnlocked:store.maxUnlocked||1,best:store.best||{},level:null,questions:[],idx:0,score:0,answered:false,submitted:false};
+function setMode(m){state.mode=m;go('levels');}
 
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]]}return a}
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -394,18 +409,19 @@ function completedCount(){return Object.keys(state.best).filter(k=>state.best[k]
 function currentRank(){const n=completedCount();let r=RANKS[0];RANKS.forEach(x=>{if(n>=x.min)r=x;});return r;}
 
 function renderLevels(){
+  const entrainement=state.mode==='entrainement';
   const rk=currentRank();
-  document.getElementById('rankIcon').textContent=rk.icon;
-  document.getElementById('rankName').textContent=rk.name;
+  document.getElementById('rankIcon').textContent=entrainement?'🎓':rk.icon;
+  document.getElementById('rankName').textContent=entrainement?'Mode entraînement':rk.name;
   const done=completedCount();
-  document.getElementById('rankSub').textContent=done>=LEVELS.length?"Tous les niveaux validés, bravo !":`${done}/${LEVELS.length} niveaux validés`;
+  document.getElementById('rankSub').textContent=entrainement?"Tous les niveaux ouverts · le score ne compte pas":(done>=LEVELS.length?"Tous les niveaux validés, bravo !":`${done}/${LEVELS.length} niveaux validés`);
   const list=document.getElementById('levelList');list.innerHTML='';
   LEVELS.forEach(L=>{
-    const locked=L.id>state.maxUnlocked;
+    const locked=entrainement?false:(L.id>state.maxUnlocked);
     const b=state.best[L.id];
     const div=document.createElement('div');
-    div.className='lvl'+(locked?' lock':'')+(b>=PASS?' done':'');
-    let mark=locked?'🔒':(b!=null?`${b}/10`:'');
+    div.className='lvl'+(locked?' lock':'')+(!entrainement&&b>=PASS?' done':'');
+    let mark=locked?'🔒':(!entrainement&&b!=null?`${b}/10`:'');
     div.innerHTML=`<span class="em">${locked?'🔒':L.emoji}</span><div class="info"><b>Niveau ${L.id} · ${escapeHtml(L.name)}</b><small>${escapeHtml(L.desc)}</small></div><span class="mark">${mark}</span>`;
     if(!locked) div.onclick=()=>startLevel(L.id);
     list.appendChild(div);
@@ -469,22 +485,40 @@ function nextQuestion(){if(state.idx<9){state.idx++;render();}else showResult();
 
 async function showResult(){
   go('result');
+  const entrainement=state.mode==='entrainement';
   const passed=state.score>=PASS;
+  const duree_ms=state.startTime?(Date.now()-state.startTime):null;
   document.getElementById('resEmoji').textContent=passed?'🏆':'💪';
-  document.getElementById('resName').textContent=`${state.pseudo} · Niveau ${state.level}`;
+  document.getElementById('resName').textContent=`${state.pseudo} · Niveau ${state.level}${entrainement?' · Entraînement':''}`;
   const fs=document.getElementById('finalScore');fs.textContent=state.score;fs.className=passed?'ok':'ko';
   const msg=document.getElementById('msg');
+  const btns=document.getElementById('resBtns');btns.innerHTML='';
+  const lbTitle=document.querySelector('#result .lbtitle');
+  const lbBody=document.getElementById('lbBody');
+
+  if(entrainement){
+    // Mode entraînement : rien n'est enregistré, pas de déblocage, classement masqué
+    msg.textContent=`Entraînement terminé — ce score ne compte pas.${duree_ms!=null?'  ⏱ '+fmtDuree(duree_ms):''}`;
+    if(state.level<LEVELS.length){const b=document.createElement('button');b.className='btn';b.textContent='Niveau suivant ›';b.onclick=()=>startLevel(state.level+1);btns.appendChild(b);}
+    const rb=document.createElement('button');rb.className='btn ghost';rb.textContent='Rejouer ce niveau';rb.onclick=()=>startLevel(state.level);btns.appendChild(rb);
+    const lb=document.createElement('button');lb.className='btn ghost';lb.textContent='Choisir un niveau';lb.onclick=()=>go('levels');btns.appendChild(lb);
+    if(lbTitle)lbTitle.style.display='none';
+    if(lbBody)lbBody.style.display='none';
+    return;
+  }
+
+  // Mode classement : progression + enregistrement
+  if(lbTitle)lbTitle.style.display='';
+  if(lbBody)lbBody.style.display='';
   if(state.best[state.level]==null||state.score>state.best[state.level]){state.best[state.level]=state.score;store.best=state.best;}
   let unlockedNow=false;
   if(passed&&state.level===state.maxUnlocked&&state.level<LEVELS.length){state.maxUnlocked++;store.maxUnlocked=state.maxUnlocked;unlockedNow=true;}
   store.best=state.best;store.maxUnlocked=state.maxUnlocked;save();
   msg.textContent=passed?(unlockedNow?`Validé ! Niveau ${state.level+1} débloqué 🔓`:"Niveau validé, bravo !"):"Pas encore validé (7/10 minimum). Réessaie !";
-  const btns=document.getElementById('resBtns');btns.innerHTML='';
+  if(duree_ms!=null){msg.textContent+=`  ⏱ ${fmtDuree(duree_ms)}`;}
   if(passed&&state.level<LEVELS.length){const b=document.createElement('button');b.className='btn';b.textContent='Niveau suivant ›';b.onclick=()=>startLevel(state.level+1);btns.appendChild(b);}
   const rb=document.createElement('button');rb.className='btn'+((passed&&state.level<LEVELS.length)?' ghost':'');rb.textContent='Rejouer ce niveau';rb.onclick=()=>startLevel(state.level);btns.appendChild(rb);
   const lb=document.createElement('button');lb.className='btn ghost';lb.textContent='Choisir un niveau';lb.onclick=()=>go('levels');btns.appendChild(lb);
-  const duree_ms=state.startTime?(Date.now()-state.startTime):null;
-  if(duree_ms!=null){const d=document.getElementById('msg');d.textContent+=`  ⏱ ${fmtDuree(duree_ms)}`;}
   if(!state.submitted){state.submitted=true;await submitScore(state.pseudo,state.level,state.score,duree_ms);}
   loadLeaderboard('lbBody');
 }
