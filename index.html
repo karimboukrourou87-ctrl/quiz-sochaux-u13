@@ -168,8 +168,8 @@
    puis crée la table avec le SQL fourni dans le message.
    Tant que ce n'est pas fait, le quiz marche sans classement.
    =================================================================== */
-const SUPABASE_URL = "https://TON-PROJET.supabase.co";
-const SUPABASE_ANON_KEY = "TA_CLE_ANON_PUBLIC";
+const SUPABASE_URL = "https://ysvurqkhccaatciqgcpm.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_-w2SzXnUw6WX4IL6yxoUlA_8ZdKL7IM";
 let sb=null;
 try{ if(window.supabase && !SUPABASE_URL.includes("TON-PROJET")) sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY); }catch(e){ sb=null; }
 
