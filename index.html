@@ -395,8 +395,27 @@ let store={};
 try{ store=JSON.parse(localStorage.getItem('lionceaux')||'{}'); }catch(e){ store={}; }
 function save(){ try{ localStorage.setItem('lionceaux',JSON.stringify(store)); }catch(e){} }
 
-let state={pseudo:"",mascot:"",mode:"classement",maxUnlocked:store.maxUnlocked||1,best:store.best||{},level:null,questions:[],idx:0,score:0,answered:false,submitted:false};
-function setMode(m){state.mode=m;go('levels');}
+let state={pseudo:"",mascot:"",mode:"classement",maxUnlocked:1,best:store.best||{},level:null,questions:[],idx:0,score:0,answered:false,submitted:false};
+function pseudoKey(){return state.pseudo.trim().toLowerCase().slice(0,32);}
+async function loadProgression(mode){
+  state.maxUnlocked=1;
+  if(!sb)return;
+  try{
+    const {data,error}=await sb.from('progression').select('niveau_max').eq('pseudo',pseudoKey()).eq('mode',mode).maybeSingle();
+    if(!error && data && data.niveau_max){state.maxUnlocked=Math.max(1,Math.min(LEVELS.length,data.niveau_max));}
+  }catch(e){}
+}
+async function saveProgression(){
+  if(!sb)return;
+  try{ await sb.from('progression').upsert({pseudo:pseudoKey(),mode:state.mode,niveau_max:state.maxUnlocked,updated_at:new Date().toISOString()},{onConflict:'pseudo,mode'}); }catch(e){}
+}
+async function setMode(m){
+  state.mode=m;
+  go('levels');
+  const list=document.getElementById('levelList');if(list)list.innerHTML='<div class="lbnote">Chargement de ta progression…</div>';
+  await loadProgression(m);
+  renderLevels();
+}
 
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]]}return a}
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -412,12 +431,14 @@ function renderLevels(){
   const entrainement=state.mode==='entrainement';
   const rk=currentRank();
   document.getElementById('rankIcon').textContent=entrainement?'🎓':rk.icon;
-  document.getElementById('rankName').textContent=entrainement?'Mode entraînement':rk.name;
-  const done=completedCount();
-  document.getElementById('rankSub').textContent=entrainement?"Tous les niveaux ouverts · le score ne compte pas":(done>=LEVELS.length?"Tous les niveaux validés, bravo !":`${done}/${LEVELS.length} niveaux validés`);
+  document.getElementById('rankName').textContent=entrainement?'Entraînement · '+escapeHtml(state.pseudo):rk.name;
+  const reached=Math.min(state.maxUnlocked,LEVELS.length);
+  document.getElementById('rankSub').textContent=entrainement
+    ?(reached>=LEVELS.length?"Tous les niveaux atteints, bravo !":`Tu en es au niveau ${reached}/${LEVELS.length} · le score ne compte pas`)
+    :(reached>=LEVELS.length?"Tous les niveaux débloqués !":`Niveau ${reached}/${LEVELS.length} débloqué`);
   const list=document.getElementById('levelList');list.innerHTML='';
   LEVELS.forEach(L=>{
-    const locked=entrainement?false:(L.id>state.maxUnlocked);
+    const locked=L.id>state.maxUnlocked;
     const b=state.best[L.id];
     const div=document.createElement('div');
     div.className='lvl'+(locked?' lock':'')+(!entrainement&&b>=PASS?' done':'');
@@ -428,8 +449,21 @@ function renderLevels(){
   });
 }
 
+function qWords(t){return new Set(String(t).toLowerCase().replace(/[^a-zàâçéèêëîïôûùü0-9 ]/g,' ').split(/\s+/).filter(Boolean));}
+function qSimilar(a,b){const A=qWords(a),B=qWords(b);let inter=0;A.forEach(w=>{if(B.has(w))inter++;});const uni=new Set([...A,...B]).size||1;return inter/uni;}
+function pickDistinct(bank){
+  const shuffled=shuffle(bank);const chosen=[];
+  for(const q of shuffled){
+    if(chosen.length>=10)break;
+    if(chosen.some(c=>qSimilar(c.q,q.q)>=0.6))continue; // évite 2 questions trop proches
+    chosen.push(q);
+  }
+  // compléter si besoin (banque petite) sans redoublonner les objets déjà pris
+  if(chosen.length<10){for(const q of shuffled){if(chosen.length>=10)break;if(!chosen.includes(q))chosen.push(q);}}
+  return chosen.slice(0,10);
+}
 function buildLevel(id){
-  const qs=shuffle(BANK[id]).slice(0,10);
+  const qs=pickDistinct(BANK[id]);
   const n=qs.length;
   let pool=[];while(pool.length<n)pool=pool.concat(shuffle([0,1,2,3]));
   pool=pool.slice(0,n);
@@ -496,24 +530,28 @@ async function showResult(){
   const lbTitle=document.querySelector('#result .lbtitle');
   const lbBody=document.getElementById('lbBody');
 
+  // Déblocage du niveau suivant (commun aux deux modes), sauvegardé dans le cloud par pseudo
+  let unlockedNow=false;
+  if(passed&&state.level===state.maxUnlocked&&state.level<LEVELS.length){state.maxUnlocked++;unlockedNow=true;saveProgression();}
+
   if(entrainement){
-    // Mode entraînement : rien n'est enregistré, pas de déblocage, classement masqué
-    msg.textContent=`Entraînement terminé — ce score ne compte pas.${duree_ms!=null?'  ⏱ '+fmtDuree(duree_ms):''}`;
-    if(state.level<LEVELS.length){const b=document.createElement('button');b.className='btn';b.textContent='Niveau suivant ›';b.onclick=()=>startLevel(state.level+1);btns.appendChild(b);}
-    const rb=document.createElement('button');rb.className='btn ghost';rb.textContent='Rejouer ce niveau';rb.onclick=()=>startLevel(state.level);btns.appendChild(rb);
+    // Entraînement : progression gardée par pseudo, mais le score ne compte pas dans le classement officiel
+    let m=passed?(unlockedNow?`Niveau validé ! Niveau ${state.level+1} débloqué 🔓`:"Niveau réussi, bravo !"):"Pas encore réussi (7/10 minimum). Réessaie !";
+    m+=" — Entraînement, ce score ne compte pas dans le classement.";
+    if(duree_ms!=null)m+=`  ⏱ ${fmtDuree(duree_ms)}`;
+    msg.textContent=m;
+    if(passed&&state.level<LEVELS.length){const b=document.createElement('button');b.className='btn';b.textContent='Niveau suivant ›';b.onclick=()=>startLevel(state.level+1);btns.appendChild(b);}
+    const rb=document.createElement('button');rb.className='btn'+((passed&&state.level<LEVELS.length)?' ghost':'');rb.textContent='Rejouer ce niveau';rb.onclick=()=>startLevel(state.level);btns.appendChild(rb);
     const lb=document.createElement('button');lb.className='btn ghost';lb.textContent='Choisir un niveau';lb.onclick=()=>go('levels');btns.appendChild(lb);
     if(lbTitle)lbTitle.style.display='none';
     if(lbBody)lbBody.style.display='none';
     return;
   }
 
-  // Mode classement : progression + enregistrement
+  // Mode classement : progression + enregistrement du score
   if(lbTitle)lbTitle.style.display='';
   if(lbBody)lbBody.style.display='';
-  if(state.best[state.level]==null||state.score>state.best[state.level]){state.best[state.level]=state.score;store.best=state.best;}
-  let unlockedNow=false;
-  if(passed&&state.level===state.maxUnlocked&&state.level<LEVELS.length){state.maxUnlocked++;store.maxUnlocked=state.maxUnlocked;unlockedNow=true;}
-  store.best=state.best;store.maxUnlocked=state.maxUnlocked;save();
+  if(state.best[state.level]==null||state.score>state.best[state.level]){state.best[state.level]=state.score;store.best=state.best;save();}
   msg.textContent=passed?(unlockedNow?`Validé ! Niveau ${state.level+1} débloqué 🔓`:"Niveau validé, bravo !"):"Pas encore validé (7/10 minimum). Réessaie !";
   if(duree_ms!=null){msg.textContent+=`  ⏱ ${fmtDuree(duree_ms)}`;}
   if(passed&&state.level<LEVELS.length){const b=document.createElement('button');b.className='btn';b.textContent='Niveau suivant ›';b.onclick=()=>startLevel(state.level+1);btns.appendChild(b);}
