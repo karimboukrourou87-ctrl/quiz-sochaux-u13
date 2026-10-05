@@ -100,7 +100,7 @@
 
   <section class="screen active" id="home">
     <div class="card">
-      <span class="lion">🦁</span>
+      <span class="lion" onclick="adminTap()" style="cursor:pointer">🦁</span>
       <div class="badge">⚽ FC Sochaux · Les Lionceaux</div>
       <h1>Le quiz <span class="y">des Lionceaux</span></h1>
       <p class="sub">9 niveaux pour préparer le <b>Festival U13 Pitch</b> : règles du jeu, règles de vie et nouveautés 2026-2027.</p>
@@ -197,6 +197,24 @@
       <div class="seg" id="segMode"><button data-bm="classement" onclick="setBoardMode('classement')">🏆 Compétition</button><button data-bm="entrainement" onclick="setBoardMode('entrainement')">🎓 Entraînement</button></div>
       <div id="boardBody" style="margin-top:12px"><div class="lbnote">Chargement…</div></div>
       <button class="btn" onclick="go('levels')">Retour</button>
+    </div>
+  </section>
+
+  <section class="screen" id="admin">
+    <div class="card">
+      <button class="homebtn" onclick="goHome()">← Accueil</button>
+      <span class="lion">🔧</span>
+      <div class="badge">Espace entraîneur</div>
+      <h1 style="font-size:1.6rem">Gestion des pseudos</h1>
+      <p class="sub">Réservé au staff. Supprime un pseudo d'essai partout en un clic.</p>
+      <div class="field"><label>Pseudo à supprimer</label>
+        <input id="adminPseudo" type="text" maxlength="16" placeholder="Ex : Keziah"></div>
+      <button class="btn" onclick="adminDeletePseudo()">🗑️ Supprimer ce pseudo</button>
+      <p class="sub" style="margin-top:6px;font-size:.8rem">Efface toutes ses parties et sa progression, garçons et filles.</p>
+      <div id="adminMsg" class="msg" style="margin-top:10px"></div>
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,.15);margin:18px 0">
+      <button class="btn ghost" onclick="adminResetCompetition()">🏆 Vider la compétition (reset Noël)</button>
+      <p class="sub" style="margin-top:6px;font-size:.8rem">Remet le classement officiel à zéro. L'entraînement n'est pas touché.</p>
     </div>
   </section>
 
@@ -449,7 +467,7 @@ function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=(Math.rand
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function go(id){if(id!=='quiz'){if(typeof clearTimer==='function')clearTimer();const t=document.getElementById('timer');if(t)t.style.display='none';}document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);if(id==='levels')renderLevels();if(id==='name')fillNameScreen();}
 
-function savePlayer(){try{sessionStorage.setItem('joueur',JSON.stringify({pseudo:state.pseudo,mascot:state.mascot,categorie:state.categorie}));}catch(e){}}
+function savePlayer(){try{localStorage.setItem('joueur',JSON.stringify({pseudo:state.pseudo,mascot:state.mascot,categorie:state.categorie}));}catch(e){}}
 function fillNameScreen(){
   const inp=document.getElementById('pseudoInput');if(inp)inp.value=state.pseudo||'';
   document.querySelectorAll('#mascotGrid .pick').forEach(p=>p.classList.toggle('sel',p.dataset.name===state.mascot));
@@ -694,9 +712,48 @@ async function refreshBoard(){
 }
 function setBoardMode(m){state.boardMode=m;refreshBoard();}
 function showLeaderboardScreen(){state.boardMode=state.mode;go('board');refreshBoard();}
+/* ===== Espace entraîneur (accès caché) ===== */
+const ADMIN_CODE="FCSM2027"; // code réservé au staff pour accéder à la gestion des pseudos
+let adminTaps=0,adminTapT=null;
+function adminTap(){
+  adminTaps++;clearTimeout(adminTapT);adminTapT=setTimeout(()=>{adminTaps=0;},1500);
+  if(adminTaps>=5){adminTaps=0;openAdmin();}
+}
+function openAdmin(){
+  const c=prompt("Code entraîneur :");
+  if(c===null)return;
+  if(c.trim().toUpperCase()===ADMIN_CODE){const m=document.getElementById('adminMsg');if(m)m.textContent='';const i=document.getElementById('adminPseudo');if(i)i.value='';go('admin');}
+  else alert("Code incorrect.");
+}
+async function adminDeletePseudo(){
+  const m=document.getElementById('adminMsg');
+  const p=(document.getElementById('adminPseudo').value||'').trim();
+  if(!p){m.textContent="Entre un pseudo.";return;}
+  if(!sb){m.textContent="Connexion au cloud indisponible (teste depuis le site en ligne).";return;}
+  if(!confirm('Supprimer définitivement "'+p+'" (toutes ses parties et sa progression) ?'))return;
+  m.textContent="Suppression…";
+  try{
+    const r1=await sb.from('classement').delete().ilike('pseudo',p).select();
+    const r2=await sb.from('progression').delete().ilike('pseudo',p).select();
+    if(r1.error||r2.error)throw (r1.error||r2.error);
+    const n=(r1.data?r1.data.length:0);
+    m.textContent='✅ "'+p+'" supprimé. '+n+' partie(s) effacée(s).';
+  }catch(e){m.textContent="Échec. Vérifie que les règles de suppression sont activées dans Supabase.";}
+}
+async function adminResetCompetition(){
+  const m=document.getElementById('adminMsg');
+  if(!sb){m.textContent="Connexion au cloud indisponible (teste depuis le site en ligne).";return;}
+  if(!confirm("Vider TOUT le classement de la compétition ? L'entraînement est conservé."))return;
+  m.textContent="Remise à zéro…";
+  try{
+    const r=await sb.from('classement').delete().eq('mode','classement').select();
+    if(r.error)throw r.error;
+    m.textContent='✅ Compétition remise à zéro. '+(r.data?r.data.length:0)+' partie(s) effacée(s).';
+  }catch(e){m.textContent="Échec. Vérifie que les règles de suppression sont activées dans Supabase.";}
+}
 function goHome(){clearTimer();go('home');}
 // Restauration du joueur mémorisé pendant la session (jusqu'à la fermeture de l'onglet)
-try{const j=JSON.parse(sessionStorage.getItem('joueur')||'{}');if(j&&j.pseudo)state.pseudo=j.pseudo;if(j&&j.mascot)state.mascot=j.mascot;if(j&&j.categorie)state.categorie=j.categorie;}catch(e){}
+try{let j=JSON.parse(localStorage.getItem('joueur')||'null');if(!j){j=JSON.parse(sessionStorage.getItem('joueur')||'{}');}if(j&&j.pseudo)state.pseudo=j.pseudo;if(j&&j.mascot)state.mascot=j.mascot;if(j&&j.categorie)state.categorie=j.categorie;}catch(e){}
 </script>
 </body>
 </html>
