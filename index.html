@@ -146,7 +146,7 @@
       <p class="sub">Entraîne-toi d'abord, puis lance-toi dans le classement.</p>
       <button class="btn" onclick="setMode('entrainement')">🎓 Entraînement</button>
       <p class="sub" style="margin-top:8px;font-size:.85rem">Progressif, repris avec ton prénom · le score ne compte pas</p>
-      <button class="btn" onclick="setMode('classement')">🏆 Classement</button>
+      <button class="btn" onclick="setMode('classement')">🏆 Compétition</button>
       <p class="sub" style="margin-top:8px;font-size:.85rem">Le jeu officiel · ton score entre dans le classement</p>
     </div>
   </section>
@@ -194,7 +194,7 @@
       <button class="homebtn" onclick="goHome()">← Accueil</button>
       <span class="lion">🏅</span>
       <div class="badge" id="boardBadge">Meilleurs scores</div>
-      <div class="seg" id="segMode"><button data-bm="classement" onclick="setBoardMode('classement')">🏆 Classement</button><button data-bm="entrainement" onclick="setBoardMode('entrainement')">🎓 Entraînement</button></div>
+      <div class="seg" id="segMode"><button data-bm="classement" onclick="setBoardMode('classement')">🏆 Compétition</button><button data-bm="entrainement" onclick="setBoardMode('entrainement')">🎓 Entraînement</button></div>
       <div id="boardBody" style="margin-top:12px"><div class="lbnote">Chargement…</div></div>
       <button class="btn" onclick="go('levels')">Retour</button>
     </div>
@@ -463,7 +463,7 @@ function currentRank(){const n=completedCount();let r=RANKS[0];RANKS.forEach(x=>
 
 function renderLevels(){
   const entrainement=state.mode==='entrainement';
-  const lb=document.getElementById('levelsBadge');if(lb)lb.textContent=catLabel()+' · '+(entrainement?'Entraînement':'Classement');
+  const lb=document.getElementById('levelsBadge');if(lb)lb.textContent=catLabel()+' · '+(entrainement?'Entraînement':'Compétition');
   const rk=currentRank();
   document.getElementById('rankIcon').textContent=entrainement?'🎓':rk.icon;
   document.getElementById('rankName').textContent=entrainement?'Entraînement · '+escapeHtml(state.pseudo):rk.name;
@@ -519,20 +519,20 @@ function buildLevel(id){
 function startLevel(id){
   state.level=id;state.questions=buildLevel(id);
   state.idx=0;state.score=0;state.answered=false;state.submitted=false;
-  state.startTime=Date.now();
+  state.startTime=Date.now();state.answerMsSum=0;state.qShownAt=0;
   go('quiz');render();
 }
 function fmtDuree(ms){if(ms==null)return'';const s=Math.round(ms/1000);if(s<60)return s+' s';const m=Math.floor(s/60);const r=s%60;return m+' min '+(r<10?'0':'')+r+' s';}
 function fmtParQ(ms){if(ms==null)return'';const s=ms/1000;return (s<10?s.toFixed(1):Math.round(s))+' s/q';}
 
-const Q_TIME=15; // secondes par question en mode classement
+const Q_TIME_CLASSEMENT=15; // secondes par question en compétition
+const Q_TIME_ENTRAINEMENT=20; // secondes par question à l'entraînement
+function timeLimit(){return state.mode==='classement'?Q_TIME_CLASSEMENT:Q_TIME_ENTRAINEMENT;}
 function clearTimer(){if(state.timerId){clearInterval(state.timerId);state.timerId=null;}}
 function startTimer(){
   const el=document.getElementById('timer');
-  const chrono=(state.mode==='classement');
-  if(!chrono){el.style.display='none';clearTimer();return;}
   el.style.display='';
-  let left=Q_TIME;
+  let left=timeLimit();
   el.textContent=`⏱ ${left}s`;el.style.color='';
   clearTimer();
   state.timerId=setInterval(()=>{
@@ -554,25 +554,32 @@ function render(){
   const wrap=document.getElementById('answers');wrap.innerHTML='';
   Q.opts.forEach((txt,oi)=>{const b=document.createElement('button');b.className='ans';b.textContent=txt;b.onclick=()=>answer(b,oi===Q.correct,Q);wrap.appendChild(b);});
   startTimer();
+  state.qShownAt=Date.now();
 }
+function recordAnswerTime(){if(state.qShownAt){state.answerMsSum+=Date.now()-state.qShownAt;state.qShownAt=0;}}
 
 function revealAnswer(Q){
   [...document.querySelectorAll('#answers .ans')].forEach(b=>{b.classList.add('lock');if(b.textContent===Q.opts[Q.correct])b.classList.add('good');});
 }
 
 function timeOut(){
-  if(state.answered)return;state.answered=true;
+  if(state.answered)return;state.answered=true;recordAnswerTime();
   const Q=state.questions[state.idx];
   revealAnswer(Q);
   const fb=document.getElementById('feedback');
   fb.innerHTML='⏱ Temps écoulé&nbsp;! <small>Bonne réponse : '+escapeHtml(Q.opts[Q.correct])+'</small>';
   fb.classList.add('show');
   document.getElementById('fill').style.width=`${(state.idx+1)/10*100}%`;
-  setTimeout(nextQuestion,1400); // mode classement uniquement (le chrono n'existe qu'en classement)
+  if(state.mode==='classement'){
+    setTimeout(nextQuestion,1400);
+  }else{
+    const nb=document.getElementById('nextBtn');nb.classList.remove('hidden');
+    nb.textContent=state.idx===9?'Voir le résultat ›':'Suivant ›';
+  }
 }
 
 function answer(btn,correct,Q){
-  if(state.answered)return;state.answered=true;
+  if(state.answered)return;state.answered=true;recordAnswerTime();
   clearTimer();
   revealAnswer(Q);
   const fb=document.getElementById('feedback');
@@ -596,7 +603,7 @@ async function showResult(){
   go('result');
   const entrainement=state.mode==='entrainement';
   const passed=state.score>=PASS;
-  const duree_ms=state.startTime?(Date.now()-state.startTime):null;
+  const duree_ms=state.answerMsSum>0?state.answerMsSum:null;
   document.getElementById('resEmoji').textContent=passed?'🏆':'💪';
   document.getElementById('resName').textContent=`${state.pseudo} · Niveau ${state.level}${entrainement?' · Entraînement':''}`;
   const fs=document.getElementById('finalScore');fs.textContent=state.score;fs.className=passed?'ok':'ko';
@@ -620,12 +627,13 @@ async function showResult(){
     const lb=document.createElement('button');lb.className='btn ghost';lb.textContent='Choisir un niveau';lb.onclick=()=>go('levels');btns.appendChild(lb);
     if(lbTitle){lbTitle.style.display='';lbTitle.textContent='🎓 Entraînement · '+catLabel();}
     if(lbBody)lbBody.style.display='';
+    if(!state.submitted){state.submitted=true;await submitScore(state.pseudo,state.level,state.score,duree_ms);}
     loadLeaderboard('lbBody','entrainement');
     return;
   }
 
   // Mode classement : progression + enregistrement du score
-  if(lbTitle){lbTitle.style.display='';lbTitle.textContent='🏅 Classement · '+catLabel();}
+  if(lbTitle){lbTitle.style.display='';lbTitle.textContent='🏆 Compétition · '+catLabel();}
   if(lbBody)lbBody.style.display='';
   if(state.best[state.level]==null||state.score>state.best[state.level]){state.best[state.level]=state.score;store.best=state.best;save();}
   msg.textContent=passed?(unlockedNow?`Validé ! Niveau ${state.level+1} débloqué 🔓`:"Niveau validé, bravo !"):"Pas encore validé (7/10 minimum). Réessaie !";
@@ -639,24 +647,15 @@ async function showResult(){
 
 async function submitScore(pseudo,niveau,score,duree_ms){
   if(!sb)return;
-  try{ await sb.from('classement').insert({pseudo:pseudo.slice(0,16),niveau,score,duree_ms,categorie:state.categorie}); }catch(e){ console.error(e); }
+  try{ await sb.from('classement').insert({pseudo:pseudo.slice(0,16),niveau,score,duree_ms,categorie:state.categorie,mode:state.mode}); }catch(e){ console.error(e); }
 }
 const medals=['🥇','🥈','🥉'];
 async function rankingHTML(mode,cat){
   if(!sb)return '<div class="lbnote">Classement à configurer (voir instructions).</div>';
   try{
-    if(mode==='entrainement'){
-      const {data,error}=await sb.from('progression')
-        .select('pseudo,niveau_max,updated_at')
-        .eq('mode','entrainement').eq('categorie',cat)
-        .order('niveau_max',{ascending:false}).order('updated_at',{ascending:true}).limit(1000);
-      if(error)throw error;
-      if(!data||!data.length)return '<div class="lbnote">Personne pour le moment.</div>';
-      return data.slice(0,20).map((r,i)=>`<div class="lbrow"><span class="lbrank">${medals[i]||(i+1)}</span><span class="lbname">${escapeHtml(r.pseudo)}</span><span class="lblvl">Entraînement</span><span class="lbscore">Niv ${r.niveau_max}</span></div>`).join('');
-    }
-    const {data,error}=await sb.from('classement').select('pseudo,niveau,score,duree_ms').eq('categorie',cat).limit(5000);
+    const {data,error}=await sb.from('classement').select('pseudo,niveau,score,duree_ms,mode').eq('categorie',cat).eq('mode',mode).limit(5000);
     if(error)throw error;
-    if(!data||!data.length)return '<div class="lbnote">Aucun score pour le moment.</div>';
+    if(!data||!data.length)return '<div class="lbnote">Personne pour le moment.</div>';
     const agg={};
     for(const r of data){
       const k=(r.pseudo||'').trim().toLowerCase();if(!k)continue;
@@ -687,7 +686,7 @@ async function refreshBoard(){
   const bm=state.boardMode||state.mode;
   document.querySelectorAll('#segMode button').forEach(b=>b.classList.toggle('on',b.dataset.bm===bm));
   const bb=document.getElementById('boardBadge');
-  if(bb)bb.textContent=(bm==='entrainement'?'🎓 Entraînement':'🏅 Classement')+' · Garçons & Filles';
+  if(bb)bb.textContent=(bm==='entrainement'?'🎓 Entraînement':'🏆 Compétition')+' · Garçons & Filles';
   const box=document.getElementById('boardBody');if(!box)return;
   box.innerHTML='<div class="lbnote">Chargement…</div>';
   const [g,f]=await Promise.all([rankingHTML(bm,'U13G'),rankingHTML(bm,'U13F')]);
