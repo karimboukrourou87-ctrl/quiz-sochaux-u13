@@ -671,12 +671,21 @@ const medals=['🥇','🥈','🥉'];
 async function rankingHTML(mode,cat){
   if(!sb)return '<div class="lbnote">Classement à configurer (voir instructions).</div>';
   try{
-    const {data,error}=await sb.from('classement').select('pseudo,niveau,score,duree_ms,mode').eq('categorie',cat).eq('mode',mode).limit(5000);
+    const {data,error}=await sb.from('classement').select('pseudo,niveau,score,duree_ms,mode,created_at').eq('categorie',cat).eq('mode',mode).limit(5000);
     if(error)throw error;
     if(!data||!data.length)return '<div class="lbnote">Personne pour le moment.</div>';
-    const agg={};
+    // On ne garde que la DERNIÈRE partie de chaque niveau pour chaque joueur (une nouvelle partie repart à zéro)
+    const latest={};
     for(const r of data){
-      const k=(r.pseudo||'').trim().toLowerCase();if(!k)continue;
+      const pk=(r.pseudo||'').trim().toLowerCase();if(!pk)continue;
+      const key=pk+'|'+(r.niveau||0);
+      const t=r.created_at?Date.parse(r.created_at):0;
+      if(!latest[key]||t>=latest[key]._t){r._t=t;latest[key]=r;}
+    }
+    const agg={};
+    for(const key in latest){
+      const r=latest[key];
+      const k=(r.pseudo||'').trim().toLowerCase();
       if(!agg[k])agg[k]={pseudo:r.pseudo,nivMax:0,scoreSum:0,plays:0,timeSum:0,timedQ:0};
       const a=agg[k];a.nivMax=Math.max(a.nivMax,r.niveau||0);a.scoreSum+=(r.score||0);a.plays++;
       if(r.duree_ms!=null){a.timeSum+=r.duree_ms;a.timedQ+=10;}
