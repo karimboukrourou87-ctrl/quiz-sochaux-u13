@@ -142,7 +142,7 @@
 
   <section class="screen" id="quiz">
     <div class="card">
-      <div class="top"><span class="pill" id="counter">1/10</span><span class="pill" id="liveScore">⚽ 0</span></div>
+      <div class="top"><span class="pill" id="counter">1/10</span><span class="pill" id="timer" style="display:none"></span><span class="pill" id="liveScore">⚽ 0</span></div>
       <div class="bar"><div class="fill" id="fill"></div></div>
       <div class="qtheme" id="qtheme"></div>
       <div class="question" id="qtext"></div>
@@ -395,7 +395,7 @@ let store={};
 try{ store=JSON.parse(localStorage.getItem('lionceaux')||'{}'); }catch(e){ store={}; }
 function save(){ try{ localStorage.setItem('lionceaux',JSON.stringify(store)); }catch(e){} }
 
-let state={pseudo:"",mascot:"",mode:"classement",maxUnlocked:1,best:store.best||{},level:null,questions:[],idx:0,score:0,answered:false,submitted:false};
+let state={pseudo:"",mascot:"",mode:"classement",maxUnlocked:1,best:store.best||{},level:null,questions:[],idx:0,score:0,answered:false,submitted:false,timerId:null};
 function pseudoKey(){return state.pseudo.trim().toLowerCase().slice(0,32);}
 async function loadProgression(mode){
   state.maxUnlocked=1;
@@ -419,7 +419,7 @@ async function setMode(m){
 
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]]}return a}
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);if(id==='levels')renderLevels();}
+function go(id){if(id!=='quiz'){if(typeof clearTimer==='function')clearTimer();const t=document.getElementById('timer');if(t)t.style.display='none';}document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);if(id==='levels')renderLevels();}
 
 function pickMascot(el){document.querySelectorAll('#mascotGrid .pick').forEach(p=>p.classList.remove('sel'));el.classList.add('sel');state.mascot=el.dataset.name;checkReady();}
 function checkReady(){state.pseudo=document.getElementById('pseudoInput').value.trim();const ok=document.getElementById('nameOk');const r=state.pseudo.length>0&&state.mascot;ok.disabled=!r;ok.style.opacity=r?1:.5;}
@@ -489,6 +489,23 @@ function startLevel(id){
 }
 function fmtDuree(ms){if(ms==null)return'';const s=Math.round(ms/1000);if(s<60)return s+' s';const m=Math.floor(s/60);const r=s%60;return m+' min '+(r<10?'0':'')+r+' s';}
 
+const Q_TIME=12; // secondes par question en mode classement
+function clearTimer(){if(state.timerId){clearInterval(state.timerId);state.timerId=null;}}
+function startTimer(){
+  const el=document.getElementById('timer');
+  const chrono=(state.mode==='classement');
+  if(!chrono){el.style.display='none';clearTimer();return;}
+  el.style.display='';
+  let left=Q_TIME;
+  el.textContent=`⏱ ${left}s`;el.style.color='';
+  clearTimer();
+  state.timerId=setInterval(()=>{
+    left--;
+    el.textContent=`⏱ ${left}s`;
+    if(left<=5)el.style.color='#ff4d5e';
+    if(left<=0){clearTimer();timeOut();}
+  },1000);
+}
 function render(){
   const Q=state.questions[state.idx];state.answered=false;
   document.getElementById('counter').textContent=`${state.idx+1}/10`;
@@ -500,22 +517,44 @@ function render(){
   document.getElementById('nextBtn').classList.add('hidden');
   const wrap=document.getElementById('answers');wrap.innerHTML='';
   Q.opts.forEach((txt,oi)=>{const b=document.createElement('button');b.className='ans';b.textContent=txt;b.onclick=()=>answer(b,oi===Q.correct,Q);wrap.appendChild(b);});
+  startTimer();
+}
+
+function revealAnswer(Q){
+  [...document.querySelectorAll('#answers .ans')].forEach(b=>{b.classList.add('lock');if(b.textContent===Q.opts[Q.correct])b.classList.add('good');});
+}
+
+function timeOut(){
+  if(state.answered)return;state.answered=true;
+  const Q=state.questions[state.idx];
+  revealAnswer(Q);
+  const fb=document.getElementById('feedback');
+  fb.innerHTML='⏱ Temps écoulé&nbsp;! <small>Bonne réponse : '+escapeHtml(Q.opts[Q.correct])+'</small>';
+  fb.classList.add('show');
+  document.getElementById('fill').style.width=`${(state.idx+1)/10*100}%`;
+  setTimeout(nextQuestion,1400); // mode classement uniquement (le chrono n'existe qu'en classement)
 }
 
 function answer(btn,correct,Q){
   if(state.answered)return;state.answered=true;
-  [...document.querySelectorAll('#answers .ans')].forEach(b=>{b.classList.add('lock');if(b.textContent===Q.opts[Q.correct])b.classList.add('good');});
+  clearTimer();
+  revealAnswer(Q);
   const fb=document.getElementById('feedback');
   if(correct){state.score++;btn.classList.add('good');fb.innerHTML='✅ Bravo&nbsp;!';}
   else{btn.classList.add('bad');fb.innerHTML='❌ Perdu&nbsp;! <small>Bonne réponse : '+escapeHtml(Q.opts[Q.correct])+'</small>';}
   fb.classList.add('show');
   document.getElementById('liveScore').textContent=`⚽ ${state.score}`;
   document.getElementById('fill').style.width=`${(state.idx+1)/10*100}%`;
-  const nb=document.getElementById('nextBtn');nb.classList.remove('hidden');
-  nb.textContent=state.idx===9?'Voir le résultat ›':'Suivant ›';
+  if(state.mode==='classement'){
+    // compétition : on enchaîne directement après un court affichage de la réponse
+    setTimeout(nextQuestion,900);
+  }else{
+    const nb=document.getElementById('nextBtn');nb.classList.remove('hidden');
+    nb.textContent=state.idx===9?'Voir le résultat ›':'Suivant ›';
+  }
 }
 
-function nextQuestion(){if(state.idx<9){state.idx++;render();}else showResult();}
+function nextQuestion(){clearTimer();if(state.idx<9){state.idx++;render();}else showResult();}
 
 async function showResult(){
   go('result');
@@ -543,8 +582,9 @@ async function showResult(){
     if(passed&&state.level<LEVELS.length){const b=document.createElement('button');b.className='btn';b.textContent='Niveau suivant ›';b.onclick=()=>startLevel(state.level+1);btns.appendChild(b);}
     const rb=document.createElement('button');rb.className='btn'+((passed&&state.level<LEVELS.length)?' ghost':'');rb.textContent='Rejouer ce niveau';rb.onclick=()=>startLevel(state.level);btns.appendChild(rb);
     const lb=document.createElement('button');lb.className='btn ghost';lb.textContent='Choisir un niveau';lb.onclick=()=>go('levels');btns.appendChild(lb);
-    if(lbTitle)lbTitle.style.display='none';
-    if(lbBody)lbBody.style.display='none';
+    if(lbTitle){lbTitle.style.display='';lbTitle.textContent='🎓 Classement entraînement';}
+    if(lbBody)lbBody.style.display='';
+    loadLeaderboard('lbBody','entrainement');
     return;
   }
 
@@ -565,28 +605,42 @@ async function submitScore(pseudo,niveau,score,duree_ms){
   if(!sb)return;
   try{ await sb.from('classement').insert({pseudo:pseudo.slice(0,16),niveau,score,duree_ms}); }catch(e){ console.error(e); }
 }
-async function loadLeaderboard(target){
+const medals=['🥇','🥈','🥉'];
+async function loadLeaderboard(target,mode){
+  mode=mode||state.mode||'classement';
   const box=document.getElementById(target);
   if(!sb){box.innerHTML='<div class="lbnote">Classement à configurer (voir instructions).</div>';return;}
   box.innerHTML='<div class="lbnote">Chargement…</div>';
   try{
+    if(mode==='entrainement'){
+      // Classement entraînement : basé sur la progression (niveau atteint) de chaque participant
+      const {data,error}=await sb.from('progression')
+        .select('pseudo,niveau_max,updated_at')
+        .eq('mode','entrainement')
+        .order('niveau_max',{ascending:false})
+        .order('updated_at',{ascending:true})
+        .limit(1000);
+      if(error)throw error;
+      if(!data||!data.length){box.innerHTML='<div class="lbnote">Personne ne s\'est encore entraîné. Sois le premier !</div>';return;}
+      box.innerHTML=data.slice(0,20).map((r,i)=>`<div class="lbrow"><span class="lbrank">${medals[i]||(i+1)}</span><span class="lbname">${escapeHtml(r.pseudo)}</span><span class="lblvl">Entraînement</span><span class="lbscore">Niv ${r.niveau_max}</span></div>`).join('');
+      return;
+    }
+    // Classement officiel : basé sur les scores (niveau > score > rapidité)
     const {data,error}=await sb.from('classement')
       .select('pseudo,niveau,score,duree_ms')
       .order('niveau',{ascending:false})
       .order('score',{ascending:false})
       .order('duree_ms',{ascending:true,nullsFirst:false})
-      .limit(500);
+      .limit(1000);
     if(error)throw error;
     if(!data||!data.length){box.innerHTML='<div class="lbnote">Sois le premier à marquer un score !</div>';return;}
     // Un seul résultat par prénom : on garde le meilleur (données déjà triées niveau > score > temps)
     const seen={}, best=[];
     for(const r of data){const k=(r.pseudo||'').trim().toLowerCase();if(k && !seen[k]){seen[k]=1;best.push(r);}}
-    const top=best.slice(0,10);
-    const medals=['🥇','🥈','🥉'];
-    box.innerHTML=top.map((r,i)=>`<div class="lbrow"><span class="lbrank">${medals[i]||(i+1)}</span><span class="lbname">${escapeHtml(r.pseudo)}</span><span class="lblvl">Niv ${r.niveau}${r.duree_ms!=null?' · '+fmtDuree(r.duree_ms):''}</span><span class="lbscore">${r.score}/10</span></div>`).join('');
+    box.innerHTML=best.slice(0,20).map((r,i)=>`<div class="lbrow"><span class="lbrank">${medals[i]||(i+1)}</span><span class="lbname">${escapeHtml(r.pseudo)}</span><span class="lblvl">Niv ${r.niveau}${r.duree_ms!=null?' · '+fmtDuree(r.duree_ms):''}</span><span class="lbscore">${r.score}/10</span></div>`).join('');
   }catch(e){box.innerHTML='<div class="lbnote">Classement indisponible pour le moment.</div>';}
 }
-function showLeaderboardScreen(){go('board');loadLeaderboard('boardBody');}
+function showLeaderboardScreen(){go('board');loadLeaderboard('boardBody',state.mode);}
 </script>
 </body>
 </html>
