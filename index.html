@@ -419,10 +419,16 @@ async function setMode(m){
 
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]]}return a}
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function go(id){if(id!=='quiz'){if(typeof clearTimer==='function')clearTimer();const t=document.getElementById('timer');if(t)t.style.display='none';}document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);if(id==='levels')renderLevels();}
+function go(id){if(id!=='quiz'){if(typeof clearTimer==='function')clearTimer();const t=document.getElementById('timer');if(t)t.style.display='none';}document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);if(id==='levels')renderLevels();if(id==='name')fillNameScreen();}
 
-function pickMascot(el){document.querySelectorAll('#mascotGrid .pick').forEach(p=>p.classList.remove('sel'));el.classList.add('sel');state.mascot=el.dataset.name;checkReady();}
-function checkReady(){state.pseudo=document.getElementById('pseudoInput').value.trim();const ok=document.getElementById('nameOk');const r=state.pseudo.length>0&&state.mascot;ok.disabled=!r;ok.style.opacity=r?1:.5;}
+function savePlayer(){try{sessionStorage.setItem('joueur',JSON.stringify({pseudo:state.pseudo,mascot:state.mascot}));}catch(e){}}
+function fillNameScreen(){
+  const inp=document.getElementById('pseudoInput');if(inp)inp.value=state.pseudo||'';
+  document.querySelectorAll('#mascotGrid .pick').forEach(p=>p.classList.toggle('sel',p.dataset.name===state.mascot));
+  checkReady();
+}
+function pickMascot(el){document.querySelectorAll('#mascotGrid .pick').forEach(p=>p.classList.remove('sel'));el.classList.add('sel');state.mascot=el.dataset.name;savePlayer();checkReady();}
+function checkReady(){const inp=document.getElementById('pseudoInput');if(inp)state.pseudo=inp.value.trim();const ok=document.getElementById('nameOk');const r=state.pseudo.length>0&&state.mascot;ok.disabled=!r;ok.style.opacity=r?1:.5;savePlayer();}
 
 function completedCount(){return Object.keys(state.best).filter(k=>state.best[k]>=PASS).length;}
 function currentRank(){const n=completedCount();let r=RANKS[0];RANKS.forEach(x=>{if(n>=x.min)r=x;});return r;}
@@ -641,6 +647,8 @@ async function loadLeaderboard(target,mode){
   }catch(e){box.innerHTML='<div class="lbnote">Classement indisponible pour le moment.</div>';}
 }
 function showLeaderboardScreen(){go('board');loadLeaderboard('boardBody',state.mode);}
+// Restauration du joueur mémorisé pendant la session (jusqu'à la fermeture de l'onglet)
+try{const j=JSON.parse(sessionStorage.getItem('joueur')||'{}');if(j&&j.pseudo)state.pseudo=j.pseudo;if(j&&j.mascot)state.mascot=j.mascot;}catch(e){}
 </script>
 </body>
 </html>
