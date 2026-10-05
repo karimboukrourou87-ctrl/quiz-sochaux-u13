@@ -29,6 +29,11 @@
   .card::before{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 60%,rgba(255,205,0,.08) 60% 64%,transparent 64%);pointer-events:none}
   .homebtn{position:absolute;top:12px;right:12px;z-index:5;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:999px;padding:7px 12px;font-size:.82rem;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif}
   .homebtn:active{transform:scale(.95)}
+  .seg{display:flex;gap:8px;margin:10px 0}
+  .seg button{flex:1;border:2px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);color:#fff;border-radius:12px;padding:9px 6px;font-size:.9rem;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif}
+  .seg button.on{border-color:var(--jaune);background:rgba(255,205,0,.18);color:#fff}
+  .boardsec{font-family:'Anton',sans-serif;text-transform:uppercase;font-size:1.05rem;color:var(--jaune);margin:16px 0 8px;letter-spacing:.03em}
+  .boardsec:first-child{margin-top:4px}
   .btn{display:block;width:100%;border:none;cursor:pointer;font-family:'Anton',sans-serif;letter-spacing:.05em;text-transform:uppercase;font-size:1.4rem;padding:15px;border-radius:16px;margin-top:16px;background:var(--jaune);color:var(--bleu);box-shadow:0 8px 0 var(--jaune-fonce);transition:transform .08s,box-shadow .08s}
   .btn:active{transform:translateY(5px);box-shadow:0 3px 0 var(--jaune-fonce)}
   .btn.ghost{background:rgba(255,255,255,.12);color:#fff;box-shadow:none;font-size:1rem;padding:12px}
@@ -99,7 +104,19 @@
       <div class="badge">⚽ FC Sochaux · Les Lionceaux</div>
       <h1>Le quiz <span class="y">des Lionceaux</span></h1>
       <p class="sub">9 niveaux pour préparer le <b>Festival U13 Pitch</b> : règles du jeu, règles de vie et nouveautés 2026-2027.</p>
-      <button class="btn" onclick="go('name')">Jouer</button>
+      <button class="btn" onclick="go('categorie')">Jouer</button>
+    </div>
+  </section>
+
+  <section class="screen" id="categorie">
+    <div class="card">
+      <button class="homebtn" onclick="goHome()">← Accueil</button>
+      <span class="lion">🦁</span>
+      <div class="badge">Catégorie</div>
+      <h1 style="font-size:1.9rem">Qui joue ?</h1>
+      <p class="sub">Choisis ta catégorie pour le Festival Pitch.</p>
+      <button class="btn" onclick="setCategorie('U13G')">👦 U13 Garçons</button>
+      <button class="btn" onclick="setCategorie('U13F')">👧 U13 Filles</button>
     </div>
   </section>
 
@@ -138,7 +155,7 @@
     <div class="card">
       <button class="homebtn" onclick="goHome()">← Accueil</button>
       <div class="rankbar"><span class="ic" id="rankIcon">🐾</span><div><b id="rankName">Lionceau Débutant</b><small id="rankSub">Valide un niveau pour progresser</small></div></div>
-      <div class="badge">Choisis ton niveau</div>
+      <div class="badge" id="levelsBadge">Choisis ton niveau</div>
       <div id="levelList"></div>
       <button class="btn ghost" onclick="showLeaderboardScreen()">🏅 Voir le classement</button>
       <button class="btn ghost" onclick="go('mode')">↔ Changer de mode</button>
@@ -176,8 +193,9 @@
     <div class="card">
       <button class="homebtn" onclick="goHome()">← Accueil</button>
       <span class="lion">🏅</span>
-      <div class="badge">Meilleurs scores</div>
-      <div id="boardBody" style="margin-top:14px"><div class="lbnote">Chargement…</div></div>
+      <div class="badge" id="boardBadge">Meilleurs scores</div>
+      <div class="seg" id="segMode"><button data-bm="classement" onclick="setBoardMode('classement')">🏆 Classement</button><button data-bm="entrainement" onclick="setBoardMode('entrainement')">🎓 Entraînement</button></div>
+      <div id="boardBody" style="margin-top:12px"><div class="lbnote">Chargement…</div></div>
       <button class="btn" onclick="go('levels')">Retour</button>
     </div>
   </section>
@@ -403,19 +421,21 @@ let store={};
 try{ store=JSON.parse(localStorage.getItem('lionceaux')||'{}'); }catch(e){ store={}; }
 function save(){ try{ localStorage.setItem('lionceaux',JSON.stringify(store)); }catch(e){} }
 
-let state={pseudo:"",mascot:"",mode:"classement",maxUnlocked:1,best:store.best||{},level:null,questions:[],idx:0,score:0,answered:false,submitted:false,timerId:null};
+let state={pseudo:"",mascot:"",categorie:"U13G",mode:"classement",maxUnlocked:1,best:store.best||{},level:null,questions:[],idx:0,score:0,answered:false,submitted:false,timerId:null};
+function setCategorie(c){state.categorie=c;savePlayer();go('name');}
+function catLabel(){return state.categorie==='U13F'?'U13 Filles':'U13 Garçons';}
 function pseudoKey(){return state.pseudo.trim().toLowerCase().slice(0,32);}
 async function loadProgression(mode){
   state.maxUnlocked=1;
   if(!sb)return;
   try{
-    const {data,error}=await sb.from('progression').select('niveau_max').eq('pseudo',pseudoKey()).eq('mode',mode).maybeSingle();
+    const {data,error}=await sb.from('progression').select('niveau_max').eq('pseudo',pseudoKey()).eq('mode',mode).eq('categorie',state.categorie).maybeSingle();
     if(!error && data && data.niveau_max){state.maxUnlocked=Math.max(1,Math.min(LEVELS.length,data.niveau_max));}
   }catch(e){}
 }
 async function saveProgression(){
   if(!sb)return;
-  try{ await sb.from('progression').upsert({pseudo:pseudoKey(),mode:state.mode,niveau_max:state.maxUnlocked,updated_at:new Date().toISOString()},{onConflict:'pseudo,mode'}); }catch(e){}
+  try{ await sb.from('progression').upsert({pseudo:pseudoKey(),mode:state.mode,categorie:state.categorie,niveau_max:state.maxUnlocked,updated_at:new Date().toISOString()},{onConflict:'pseudo,mode,categorie'}); }catch(e){}
 }
 async function setMode(m){
   state.mode=m;
@@ -429,7 +449,7 @@ function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=(Math.rand
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function go(id){if(id!=='quiz'){if(typeof clearTimer==='function')clearTimer();const t=document.getElementById('timer');if(t)t.style.display='none';}document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);if(id==='levels')renderLevels();if(id==='name')fillNameScreen();}
 
-function savePlayer(){try{sessionStorage.setItem('joueur',JSON.stringify({pseudo:state.pseudo,mascot:state.mascot}));}catch(e){}}
+function savePlayer(){try{sessionStorage.setItem('joueur',JSON.stringify({pseudo:state.pseudo,mascot:state.mascot,categorie:state.categorie}));}catch(e){}}
 function fillNameScreen(){
   const inp=document.getElementById('pseudoInput');if(inp)inp.value=state.pseudo||'';
   document.querySelectorAll('#mascotGrid .pick').forEach(p=>p.classList.toggle('sel',p.dataset.name===state.mascot));
@@ -443,6 +463,7 @@ function currentRank(){const n=completedCount();let r=RANKS[0];RANKS.forEach(x=>
 
 function renderLevels(){
   const entrainement=state.mode==='entrainement';
+  const lb=document.getElementById('levelsBadge');if(lb)lb.textContent=catLabel()+' · '+(entrainement?'Entraînement':'Classement');
   const rk=currentRank();
   document.getElementById('rankIcon').textContent=entrainement?'🎓':rk.icon;
   document.getElementById('rankName').textContent=entrainement?'Entraînement · '+escapeHtml(state.pseudo):rk.name;
@@ -502,8 +523,9 @@ function startLevel(id){
   go('quiz');render();
 }
 function fmtDuree(ms){if(ms==null)return'';const s=Math.round(ms/1000);if(s<60)return s+' s';const m=Math.floor(s/60);const r=s%60;return m+' min '+(r<10?'0':'')+r+' s';}
+function fmtParQ(ms){if(ms==null)return'';const s=ms/1000;return (s<10?s.toFixed(1):Math.round(s))+' s/q';}
 
-const Q_TIME=12; // secondes par question en mode classement
+const Q_TIME=15; // secondes par question en mode classement
 function clearTimer(){if(state.timerId){clearInterval(state.timerId);state.timerId=null;}}
 function startTimer(){
   const el=document.getElementById('timer');
@@ -596,14 +618,14 @@ async function showResult(){
     if(passed&&state.level<LEVELS.length){const b=document.createElement('button');b.className='btn';b.textContent='Niveau suivant ›';b.onclick=()=>startLevel(state.level+1);btns.appendChild(b);}
     const rb=document.createElement('button');rb.className='btn'+((passed&&state.level<LEVELS.length)?' ghost':'');rb.textContent='Rejouer ce niveau';rb.onclick=()=>startLevel(state.level);btns.appendChild(rb);
     const lb=document.createElement('button');lb.className='btn ghost';lb.textContent='Choisir un niveau';lb.onclick=()=>go('levels');btns.appendChild(lb);
-    if(lbTitle){lbTitle.style.display='';lbTitle.textContent='🎓 Classement entraînement';}
+    if(lbTitle){lbTitle.style.display='';lbTitle.textContent='🎓 Entraînement · '+catLabel();}
     if(lbBody)lbBody.style.display='';
     loadLeaderboard('lbBody','entrainement');
     return;
   }
 
   // Mode classement : progression + enregistrement du score
-  if(lbTitle)lbTitle.style.display='';
+  if(lbTitle){lbTitle.style.display='';lbTitle.textContent='🏅 Classement · '+catLabel();}
   if(lbBody)lbBody.style.display='';
   if(state.best[state.level]==null||state.score>state.best[state.level]){state.best[state.level]=state.score;store.best=state.best;save();}
   msg.textContent=passed?(unlockedNow?`Validé ! Niveau ${state.level+1} débloqué 🔓`:"Niveau validé, bravo !"):"Pas encore validé (7/10 minimum). Réessaie !";
@@ -617,47 +639,65 @@ async function showResult(){
 
 async function submitScore(pseudo,niveau,score,duree_ms){
   if(!sb)return;
-  try{ await sb.from('classement').insert({pseudo:pseudo.slice(0,16),niveau,score,duree_ms}); }catch(e){ console.error(e); }
+  try{ await sb.from('classement').insert({pseudo:pseudo.slice(0,16),niveau,score,duree_ms,categorie:state.categorie}); }catch(e){ console.error(e); }
 }
 const medals=['🥇','🥈','🥉'];
-async function loadLeaderboard(target,mode){
-  mode=mode||state.mode||'classement';
-  const box=document.getElementById(target);
-  if(!sb){box.innerHTML='<div class="lbnote">Classement à configurer (voir instructions).</div>';return;}
-  box.innerHTML='<div class="lbnote">Chargement…</div>';
+async function rankingHTML(mode,cat){
+  if(!sb)return '<div class="lbnote">Classement à configurer (voir instructions).</div>';
   try{
     if(mode==='entrainement'){
-      // Classement entraînement : basé sur la progression (niveau atteint) de chaque participant
       const {data,error}=await sb.from('progression')
         .select('pseudo,niveau_max,updated_at')
-        .eq('mode','entrainement')
-        .order('niveau_max',{ascending:false})
-        .order('updated_at',{ascending:true})
-        .limit(1000);
+        .eq('mode','entrainement').eq('categorie',cat)
+        .order('niveau_max',{ascending:false}).order('updated_at',{ascending:true}).limit(1000);
       if(error)throw error;
-      if(!data||!data.length){box.innerHTML='<div class="lbnote">Personne ne s\'est encore entraîné. Sois le premier !</div>';return;}
-      box.innerHTML=data.slice(0,20).map((r,i)=>`<div class="lbrow"><span class="lbrank">${medals[i]||(i+1)}</span><span class="lbname">${escapeHtml(r.pseudo)}</span><span class="lblvl">Entraînement</span><span class="lbscore">Niv ${r.niveau_max}</span></div>`).join('');
-      return;
+      if(!data||!data.length)return '<div class="lbnote">Personne pour le moment.</div>';
+      return data.slice(0,20).map((r,i)=>`<div class="lbrow"><span class="lbrank">${medals[i]||(i+1)}</span><span class="lbname">${escapeHtml(r.pseudo)}</span><span class="lblvl">Entraînement</span><span class="lbscore">Niv ${r.niveau_max}</span></div>`).join('');
     }
-    // Classement officiel : basé sur les scores (niveau > score > rapidité)
-    const {data,error}=await sb.from('classement')
-      .select('pseudo,niveau,score,duree_ms')
-      .order('niveau',{ascending:false})
-      .order('score',{ascending:false})
-      .order('duree_ms',{ascending:true,nullsFirst:false})
-      .limit(1000);
+    const {data,error}=await sb.from('classement').select('pseudo,niveau,score,duree_ms').eq('categorie',cat).limit(5000);
     if(error)throw error;
-    if(!data||!data.length){box.innerHTML='<div class="lbnote">Sois le premier à marquer un score !</div>';return;}
-    // Un seul résultat par prénom : on garde le meilleur (données déjà triées niveau > score > temps)
-    const seen={}, best=[];
-    for(const r of data){const k=(r.pseudo||'').trim().toLowerCase();if(k && !seen[k]){seen[k]=1;best.push(r);}}
-    box.innerHTML=best.slice(0,20).map((r,i)=>`<div class="lbrow"><span class="lbrank">${medals[i]||(i+1)}</span><span class="lbname">${escapeHtml(r.pseudo)}</span><span class="lblvl">Niv ${r.niveau}${r.duree_ms!=null?' · '+fmtDuree(r.duree_ms):''}</span><span class="lbscore">${r.score}/10</span></div>`).join('');
-  }catch(e){box.innerHTML='<div class="lbnote">Classement indisponible pour le moment.</div>';}
+    if(!data||!data.length)return '<div class="lbnote">Aucun score pour le moment.</div>';
+    const agg={};
+    for(const r of data){
+      const k=(r.pseudo||'').trim().toLowerCase();if(!k)continue;
+      if(!agg[k])agg[k]={pseudo:r.pseudo,nivMax:0,scoreSum:0,plays:0,timeSum:0,timedQ:0};
+      const a=agg[k];a.nivMax=Math.max(a.nivMax,r.niveau||0);a.scoreSum+=(r.score||0);a.plays++;
+      if(r.duree_ms!=null){a.timeSum+=r.duree_ms;a.timedQ+=10;}
+    }
+    const rows=Object.values(agg).map(a=>({pseudo:a.pseudo,nivMax:a.nivMax,scoreAvg:a.plays?a.scoreSum/a.plays:0,avgMsPerQ:a.timedQ?a.timeSum/a.timedQ:null}));
+    rows.sort((x,y)=>{
+      if(y.nivMax!==x.nivMax)return y.nivMax-x.nivMax;
+      if(y.scoreAvg!==x.scoreAvg)return y.scoreAvg-x.scoreAvg;
+      return (x.avgMsPerQ==null?Infinity:x.avgMsPerQ)-(y.avgMsPerQ==null?Infinity:y.avgMsPerQ);
+    });
+    return rows.slice(0,20).map((r,i)=>{
+      const sc=Number.isInteger(r.scoreAvg)?r.scoreAvg:r.scoreAvg.toFixed(1);
+      const t=r.avgMsPerQ!=null?' · '+fmtParQ(r.avgMsPerQ):'';
+      return `<div class="lbrow"><span class="lbrank">${medals[i]||(i+1)}</span><span class="lbname">${escapeHtml(r.pseudo)}</span><span class="lblvl">Niv ${r.nivMax}${t}</span><span class="lbscore">${sc}/10</span></div>`;
+    }).join('');
+  }catch(e){return '<div class="lbnote">Classement indisponible pour le moment.</div>';}
 }
-function showLeaderboardScreen(){go('board');loadLeaderboard('boardBody',state.mode);}
+async function loadLeaderboard(target,mode,cat){
+  mode=mode||state.mode||'classement';cat=cat||state.categorie||'U13G';
+  const box=document.getElementById(target);if(!box)return;
+  box.innerHTML='<div class="lbnote">Chargement…</div>';
+  box.innerHTML=await rankingHTML(mode,cat);
+}
+async function refreshBoard(){
+  const bm=state.boardMode||state.mode;
+  document.querySelectorAll('#segMode button').forEach(b=>b.classList.toggle('on',b.dataset.bm===bm));
+  const bb=document.getElementById('boardBadge');
+  if(bb)bb.textContent=(bm==='entrainement'?'🎓 Entraînement':'🏅 Classement')+' · Garçons & Filles';
+  const box=document.getElementById('boardBody');if(!box)return;
+  box.innerHTML='<div class="lbnote">Chargement…</div>';
+  const [g,f]=await Promise.all([rankingHTML(bm,'U13G'),rankingHTML(bm,'U13F')]);
+  box.innerHTML=`<div class="boardsec">👦 U13 Garçons</div>${g}<div class="boardsec">👧 U13 Filles</div>${f}`;
+}
+function setBoardMode(m){state.boardMode=m;refreshBoard();}
+function showLeaderboardScreen(){state.boardMode=state.mode;go('board');refreshBoard();}
 function goHome(){clearTimer();go('home');}
 // Restauration du joueur mémorisé pendant la session (jusqu'à la fermeture de l'onglet)
-try{const j=JSON.parse(sessionStorage.getItem('joueur')||'{}');if(j&&j.pseudo)state.pseudo=j.pseudo;if(j&&j.mascot)state.mascot=j.mascot;}catch(e){}
+try{const j=JSON.parse(sessionStorage.getItem('joueur')||'{}');if(j&&j.pseudo)state.pseudo=j.pseudo;if(j&&j.mascot)state.mascot=j.mascot;if(j&&j.categorie)state.categorie=j.categorie;}catch(e){}
 </script>
 </body>
 </html>
