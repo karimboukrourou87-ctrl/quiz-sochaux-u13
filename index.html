@@ -27,6 +27,8 @@
   .sub b{color:var(--jaune)}
   .card{background:linear-gradient(170deg,var(--bleu-clair),var(--bleu));border:1px solid rgba(255,255,255,.1);border-radius:26px;padding:24px 20px;box-shadow:var(--ombre);position:relative;overflow:hidden}
   .card::before{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 60%,rgba(255,205,0,.08) 60% 64%,transparent 64%);pointer-events:none}
+  .homebtn{position:absolute;top:12px;right:12px;z-index:5;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:999px;padding:7px 12px;font-size:.82rem;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif}
+  .homebtn:active{transform:scale(.95)}
   .btn{display:block;width:100%;border:none;cursor:pointer;font-family:'Anton',sans-serif;letter-spacing:.05em;text-transform:uppercase;font-size:1.4rem;padding:15px;border-radius:16px;margin-top:16px;background:var(--jaune);color:var(--bleu);box-shadow:0 8px 0 var(--jaune-fonce);transition:transform .08s,box-shadow .08s}
   .btn:active{transform:translateY(5px);box-shadow:0 3px 0 var(--jaune-fonce)}
   .btn.ghost{background:rgba(255,255,255,.12);color:#fff;box-shadow:none;font-size:1rem;padding:12px}
@@ -103,6 +105,7 @@
 
   <section class="screen" id="name">
     <div class="card">
+      <button class="homebtn" onclick="goHome()">← Accueil</button>
       <div class="badge">Ton joueur</div>
       <h1 style="font-size:1.9rem">Qui joue ?</h1>
       <div class="field"><label>Ton prénom</label>
@@ -119,12 +122,13 @@
 
   <section class="screen" id="mode">
     <div class="card">
+      <button class="homebtn" onclick="goHome()">← Accueil</button>
       <span class="lion">🦁</span>
       <div class="badge">Choisis ton mode</div>
       <h1 style="font-size:1.9rem">Comment jouer ?</h1>
       <p class="sub">Entraîne-toi d'abord, puis lance-toi dans le classement.</p>
       <button class="btn" onclick="setMode('entrainement')">🎓 Entraînement</button>
-      <p class="sub" style="margin-top:8px;font-size:.85rem">Tous les niveaux ouverts · le score ne compte pas</p>
+      <p class="sub" style="margin-top:8px;font-size:.85rem">Progressif, repris avec ton prénom · le score ne compte pas</p>
       <button class="btn" onclick="setMode('classement')">🏆 Classement</button>
       <p class="sub" style="margin-top:8px;font-size:.85rem">Le jeu officiel · ton score entre dans le classement</p>
     </div>
@@ -132,6 +136,7 @@
 
   <section class="screen" id="levels">
     <div class="card">
+      <button class="homebtn" onclick="goHome()">← Accueil</button>
       <div class="rankbar"><span class="ic" id="rankIcon">🐾</span><div><b id="rankName">Lionceau Débutant</b><small id="rankSub">Valide un niveau pour progresser</small></div></div>
       <div class="badge">Choisis ton niveau</div>
       <div id="levelList"></div>
@@ -142,6 +147,7 @@
 
   <section class="screen" id="quiz">
     <div class="card">
+      <button class="homebtn" onclick="goHome()">← Accueil</button>
       <div class="top"><span class="pill" id="counter">1/10</span><span class="pill" id="timer" style="display:none"></span><span class="pill" id="liveScore">⚽ 0</span></div>
       <div class="bar"><div class="fill" id="fill"></div></div>
       <div class="qtheme" id="qtheme"></div>
@@ -154,6 +160,7 @@
 
   <section class="screen" id="result">
     <div class="card">
+      <button class="homebtn" onclick="goHome()">← Accueil</button>
       <span class="lion" id="resEmoji">🏆</span>
       <div class="badge" id="resName">Résultat</div>
       <div class="scorebig"><span id="finalScore" class="ok">0</span><span>/10</span></div>
@@ -167,6 +174,7 @@
 
   <section class="screen" id="board">
     <div class="card">
+      <button class="homebtn" onclick="goHome()">← Accueil</button>
       <span class="lion">🏅</span>
       <div class="badge">Meilleurs scores</div>
       <div id="boardBody" style="margin-top:14px"><div class="lbnote">Chargement…</div></div>
@@ -647,6 +655,7 @@ async function loadLeaderboard(target,mode){
   }catch(e){box.innerHTML='<div class="lbnote">Classement indisponible pour le moment.</div>';}
 }
 function showLeaderboardScreen(){go('board');loadLeaderboard('boardBody',state.mode);}
+function goHome(){clearTimer();go('home');}
 // Restauration du joueur mémorisé pendant la session (jusqu'à la fermeture de l'onglet)
 try{const j=JSON.parse(sessionStorage.getItem('joueur')||'{}');if(j&&j.pseudo)state.pseudo=j.pseudo;if(j&&j.mascot)state.mascot=j.mascot;}catch(e){}
 </script>
